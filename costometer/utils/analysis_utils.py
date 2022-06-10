@@ -277,6 +277,9 @@ class AnalysisObject:
         self.read_experiment_yaml()
         self.load_cost_function_details()
 
+        if hasattr(self, "palette_name"):
+            self.palette_name = experiment_name
+
         if not self.simulated:
             self.individual_variables = pd.concat(
                 [
@@ -383,7 +386,7 @@ class AnalysisObject:
             with open(
                 self.irl_path.joinpath(
                     f"analysis/methods/static/data/"
-                    f"{experiment_name}_models_palette.pickle"
+                    f"{self.palette_name}_models_palette.pickle"
                 ),
                 "wb",
             ) as f:
