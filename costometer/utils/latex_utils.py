@@ -46,6 +46,14 @@ def get_correlation_text(correlation):
             f"95\%\ C.\ I.\: "  # noqa: W605
             f"[{correlation['CI95%'][0][0]:.2f}, {correlation['CI95%'][0][1]:.2f}]$"
         )
+    elif "spearman" in correlation.index.values:
+        return (
+            f"Spearman's $\\rho({correlation['n'].values[0]}) ="
+            f" {correlation['r'].values[0]:.2f}, "
+            f"{get_pval_text(correlation['p-val'].values[0])}, "
+            f"95\%\ C.\ I.\: "  # noqa: W605
+            f"[{correlation['CI95%'][0][0]:.2f}, {correlation['CI95%'][0][1]:.2f}]$"
+        )
     else:
         raise NotImplementedError
 
