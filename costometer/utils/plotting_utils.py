@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def set_font_sizes():
-    SMALL_SIZE = 16
-    MEDIUM_SIZE = 20
-    BIGGER_SIZE = 30
+def set_font_sizes(SMALL_SIZE=16, MEDIUM_SIZE=20, BIGGER_SIZE=30):
+    """
+    Good font sizes for a poster: 24, 36, 48
+    """
 
     plt.rc("font", size=SMALL_SIZE)  # controls default text sizes
     plt.rc("axes", labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
