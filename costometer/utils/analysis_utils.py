@@ -261,6 +261,7 @@ class AnalysisObject:
         self,
         experiment_name: str,
         irl_path: Union[str, Path],
+        experiment_subdirectory: Union[str, Path],
     ):
         """
 
@@ -270,7 +271,10 @@ class AnalysisObject:
         self.experiment_name = experiment_name
 
         #  must match my folder structure
+        #  subfolders data/processed/{experiment_name}
+        #  & analysis/{experiment_subdirectory} should exist
         self.irl_path = irl_path
+        self.experiment_subdirectory = experiment_subdirectory
 
         # add yaml attributes to object, should be:
         # sessions, cost_functions,
@@ -375,17 +379,18 @@ class AnalysisObject:
         self.optimization_data = self.load_optimization_data()
 
         if not self.irl_path.joinpath(
-            f"analysis/methods/static/data/{experiment_name}_models_palette.pickle"
+            f"analysis/{self.experiment_subdirectory}/data/"
+            f"{self.experiment_name}_models_palette.pickle"
         ).is_file():
             static_palette = generate_model_palette(
                 self.optimization_data["Model Name"].unique()
             )
-            self.irl_path.joinpath("analysis/methods/static/data/").mkdir(
-                parents=True, exist_ok=True
-            )
+            self.irl_path.joinpath(
+                f"analysis/{self.experiment_subdirectory}/data/"
+            ).mkdir(parents=True, exist_ok=True)
             with open(
                 self.irl_path.joinpath(
-                    f"analysis/methods/static/data/"
+                    f"analysis/{self.experiment_subdirectory}/data/"
                     f"{self.palette_name}_models_palette.pickle"
                 ),
                 "wb",
@@ -565,7 +570,8 @@ class AnalysisObject:
         :return:
         """
         yaml_file = self.irl_path.joinpath(
-            f"analysis/methods/static/inputs/yamls/{self.experiment_name}.yaml"
+            f"analysis/{self.experiment_subdirectory}/"
+            f"inputs/yamls/{self.experiment_name}.yaml"
         )
         with open(str(yaml_file), "r") as stream:
             yaml_dict = yaml.safe_load(stream)
@@ -676,7 +682,7 @@ class AnalysisObject:
         # only made for when there is one block
         assert len(block) == 1
         trial_by_trial_file = self.irl_path.joinpath(
-            f"analysis/methods/static/data/trial_by_trial/"
+            f"analysis/{self.experiment_subdirectory}/data/trial_by_trial/"
             f"{self.experiment_name}_{block[0]}_{prior}.csv"
         )
 
@@ -684,7 +690,7 @@ class AnalysisObject:
             return pd.read_csv(trial_by_trial_file, index_col=0)
         else:
             self.irl_path.joinpath(
-                "analysis/methods/static/data/trial_by_trial/"
+                f"analysis/{self.experiment_subdirectory}/data/trial_by_trial/"
             ).mkdir(parents=True, exist_ok=True)
             optimization_data = self.query_optimization_data(
                 group=group,
