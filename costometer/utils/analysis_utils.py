@@ -640,10 +640,7 @@ class AnalysisObject:
                         & (self.optimization_data["Group"] == group)
                         # due to cases where BICs for all cost functions are
                         # slightly off due to numeric precision
-                        & (
-                            self.optimization_data["cost_function"]
-                            == self.preferred_cost
-                        )
+                        & (self.optimization_data["cost_function"] == preferred_cost)
                     ].copy(deep=True),
                 ]
             )
