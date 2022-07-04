@@ -638,6 +638,12 @@ class AnalysisObject:
                         (self.optimization_data["applied_policy"] == "RandomPolicy")
                         & (self.optimization_data["Block"].isin(block))
                         & (self.optimization_data["Group"] == group)
+                        # due to cases where BICs for all cost functions are
+                        # slightly off due to numeric precision
+                        & (
+                            self.optimization_data["cost_function"]
+                            == self.preferred_cost
+                        )
                     ].copy(deep=True),
                 ]
             )
