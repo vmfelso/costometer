@@ -281,7 +281,7 @@ class AnalysisObject:
         self.read_experiment_yaml()
         self.load_cost_function_details()
 
-        if hasattr(self, "palette_name"):
+        if not hasattr(self, "palette_name"):
             self.palette_name = experiment_name
 
         if not self.simulated:
