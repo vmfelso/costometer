@@ -40,11 +40,14 @@ def get_states_for_trace(
     return resulting_trace
 
 
-def get_trace_from_human_row(row, experiment_setting):
+def get_trace_from_human_row(
+    row, experiment_setting: str, include_last_action: bool = False
+):
     """
     Transforms a human row to a trace
     :param row: row in mouselab dataframe
     :param experiment_setting: which (registered) mouselab setting is being used
+    :param include_last_action:
     :return:
     """
     human_trace = {}
@@ -96,22 +99,37 @@ def get_trace_from_human_row(row, experiment_setting):
     # pid
     human_trace["pid"] = row["pid"]
 
+    if include_last_action:
+        human_trace["states"] = [
+            (*state, last_action)
+            for state, last_action in zip(
+                human_trace["states"], [0] + human_trace["actions"][:-1]
+            )
+        ]
+
     return human_trace
 
 
 def get_trajectories_from_participant_data(
-    mouselab_mdp_dataframe, experiment_setting="high_increasing"
+    mouselab_mdp_dataframe,
+    experiment_setting: str = "high_increasing",
+    include_last_action: bool = False,
 ):
     """
     Get trajectories for participants in a Mouselab MDP dataframe, given an experiment setting.
 
     :param mouselab_mdp_dataframe: Dataframe of participant mouselab-mdp trials
+    :param experiment_setting:
+    :param include_last_action:
     :return: Dictionary with same structure as a `trace` in mouselab-mdp
     """  # noqa: E501
     # split dataframes into dataframe per subject
     mouselab_dict_traces = {
         pid: pid_df.apply(
-            lambda row: get_trace_from_human_row(row, experiment_setting), axis=1
+            lambda row: get_trace_from_human_row(
+                row, experiment_setting, include_last_action=include_last_action
+            ),
+            axis=1,
         ).values
         for pid, pid_df in mouselab_mdp_dataframe.groupby("pid")
     }
