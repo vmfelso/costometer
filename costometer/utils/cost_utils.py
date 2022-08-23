@@ -14,6 +14,7 @@ from numpy.random import default_rng
 def save_q_values_for_cost(
     experiment_setting,
     cost_function=linear_depth,
+    cost_function_name: str = None,
     cost_params=None,
     ground_truths=None,
     structure=None,
@@ -25,6 +26,7 @@ def save_q_values_for_cost(
     Finds q values for an experiment/parameter combination and saves as dictionary
     :param experiment_setting: experiment setting, e.g. high_increasing
     :param cost_function: cost function to use
+    :param cost_function_name: str
     :param cost_params: inputs to cost function,
             e.g. {static_cost_weight: 1, depth_cost_weight: 0}
     :param ground_truths: ground_truths for which possible states are found and calculated  # noqa
@@ -40,6 +42,10 @@ def save_q_values_for_cost(
         cost_params = {}
     else:
         cost_params = cost_params
+
+    if cost_function_name is None:
+        cost_function_name = cost_function.__name__
+
     categorical_gym_env = MouselabEnv.new_symmetric_registered(
         experiment_setting, cost=cost_function(**cost_params), **env_params
     )
@@ -57,16 +63,16 @@ def save_q_values_for_cost(
     # add experiment and parameter settings to info dict
     info["env_params"] = env_params
     info["cost_params"] = cost_params
-    info["cost_function"] = cost_function.__name__
+    info["cost_function"] = cost_function_name
 
     # saves Q-function
     if path is not None:
         parameter_string = get_param_string(cost_params)
-        path.joinpath(f"{experiment_setting}/{cost_function.__name__}/").mkdir(
+        path.joinpath(f"{experiment_setting}/{cost_function_name}/").mkdir(
             parents=True, exist_ok=True
         )
         filename = path.joinpath(
-            f"{experiment_setting}/{cost_function.__name__}/"
+            f"{experiment_setting}/{cost_function_name}/"
             f"Q_{experiment_setting}_{parameter_string}_{time.strftime('%Y%m%d-%H%M')}.pickle"  # noqa: E501
         )
 
