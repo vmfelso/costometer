@@ -4,7 +4,7 @@ from typing import Dict, List, Type
 import numpy as np
 
 from costometer.agents.vanilla import Participant
-from costometer.inference import BaseInference
+from costometer.inference.base import BaseInference
 
 
 class KubalaInference(BaseInference):
