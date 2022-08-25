@@ -22,7 +22,7 @@ vanilla_agent_test_data = [
         "env": {
             "name": "small_decreasing",
             "branching": [2, 2],
-            "reward_inputs": ["depth"],
+            "reward_inputs": "depth",
             "reward_dictionary": high_decreasing_reward,
         },
         "additional_settings": {"num_trials": 5, "policy_function": SoftmaxPolicy},
@@ -31,7 +31,7 @@ vanilla_agent_test_data = [
         "env": {
             "name": "small_increasing",
             "branching": [2, 2],
-            "reward_inputs": ["depth"],
+            "reward_inputs": "depth",
             "reward_dictionary": high_increasing_reward,
         },
         "additional_settings": {"num_trials": 10, "policy_function": SoftmaxPolicy},

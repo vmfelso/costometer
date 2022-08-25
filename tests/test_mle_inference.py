@@ -62,7 +62,7 @@ def mle_test_cases(request, inference_cost_parameters=inference_cost_parameters)
     register(
         name=request.param["env"]["setting"],
         branching=[2, 2],
-        reward_inputs=["depth"],
+        reward_inputs="depth",
         reward_dictionary=request.param["env"]["reward_dictionary"],
     )
 
