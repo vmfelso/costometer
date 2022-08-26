@@ -5,6 +5,11 @@ from costometer.utils.analysis_utils import (
     get_temp_prior,
     recalculate_maps_from_mles,
 )
+from costometer.utils.bias_utils import (
+    add_click_count_columns_to_simulated,
+    add_processed_columns,
+    fix_trial_id_for_simulated,
+)
 from costometer.utils.cost_utils import (
     get_param_string,
     load_q_file,
