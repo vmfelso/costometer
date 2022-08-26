@@ -1,6 +1,7 @@
 """These utilities are related to cost: parameter strings, combinations and q-values"""
 import time
 from itertools import product
+from typing import Any, Dict
 
 import dill as pickle
 import numpy as np
@@ -100,20 +101,30 @@ def get_param_string(cost_params):
     return parameter_string
 
 
-def load_q_file(experiment_setting, cost_function, cost_params, path):
+def load_q_file(
+    experiment_setting,
+    cost_function: str = None,
+    cost_function_name: str = None,
+    cost_params: Dict[Any, Any] = None,
+    path=None,
+):
     """
     Load Q file given experiment / cost settings
     :param experiment_setting: experiment layout
     :param cost_function: cost function
+    :param cost_function_name: cost_function_name
     :param cost_params: cost parameters
     :param path: path where data is
     :return: dictionary containing q values
     """
     parameter_string = get_param_string(cost_params=cost_params)
 
+    if cost_function_name is None:
+        cost_function_name = cost_function.__name__
+
     files = list(
         path.glob(
-            f"{experiment_setting}/{cost_function.__name__}/"
+            f"{experiment_setting}/{cost_function_name}/"
             f"Q_{experiment_setting}_{parameter_string}_*.pickle"
         )  # noqa: E501
     )
