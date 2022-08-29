@@ -79,7 +79,6 @@ class SymmetricMCLParticipant(SymmetricMouselabParticipant):
         # init form superclass
         super().__init__(
             experiment_setting=experiment_setting,
-            additional_mouselab_kwargs=kwargs,
             num_trials=num_trials,
             ground_truths=ground_truths,
             trial_ids=trial_ids,
@@ -88,6 +87,7 @@ class SymmetricMCLParticipant(SymmetricMouselabParticipant):
             trace=trace,
             policy_function=policy_function,
             policy_kwargs=policy_kwargs if policy_kwargs else {},
+            **kwargs,
         )
 
         # initialize MCL parts
