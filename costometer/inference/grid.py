@@ -23,6 +23,7 @@ class GridInference(BaseInference):
         participant_kwargs: Dict[str, Any],
         cost_function: Callable,
         cost_parameters: Dict[str, Categorical],
+        cost_function_name: str = None,
         held_constant_policy_kwargs: Dict[str, Categorical] = None,
         policy_parameters: Dict[str, Categorical] = None,
     ):
@@ -34,6 +35,7 @@ class GridInference(BaseInference):
         :param participant_kwargs:
         :param cost_function:
         :param cost_parameters:
+        :param cost_function_name:
         :param held_constant_policy_kwargs:
         :param policy_parameters:
         """
@@ -42,6 +44,7 @@ class GridInference(BaseInference):
         self.participant_class = participant_class
         self.participant_kwargs = participant_kwargs
         self.cost_function = cost_function
+        self.cost_function_name = cost_function_name
         self.cost_parameters = cost_parameters
 
         # policy parameters vary between agents
@@ -78,10 +81,13 @@ class GridInference(BaseInference):
 
             self.q_files = {
                 get_param_string(cost_kwargs): load_q_file(
-                    self.participant_kwargs["experiment_setting"],
-                    self.cost_function,
-                    cost_kwargs,
-                    self.held_constant_policy_kwargs["q_path"],
+                    experiment_setting=self.participant_kwargs["experiment_setting"],
+                    cost_function=self.cost_function
+                    if callable(self.cost_function)
+                    else None,
+                    cost_function_name=self.cost_function_name,
+                    cost_params=cost_kwargs,
+                    path=self.held_constant_policy_kwargs["q_path"],
                 )
                 for cost_kwargs in all_cost_kwargs
             }
