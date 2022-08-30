@@ -24,7 +24,7 @@ setup(
         "gym==0.21.0",  # unfortunately DiscreteEnv class was removed in 0.22.0: https://github.com/openai/gym/pull/2514 # noqa
         "hyperopt",
         "mcl_toolbox @ git+https://github.com/RationalityEnhancementGroup/mcl_toolbox.git@dev#egg=mcl_toolbox",  # noqa
-        "mouselab @ git+https://github.com/RationalityEnhancementGroup/mouselab-mdp-tools.git@main#egg=mouselab"  # noqa
+        "mouselab @ git+https://github.com/RationalityEnhancementGroup/mouselab-mdp-tools.git@dev#egg=mouselab"  # noqa
         "numpy",
         "pandas",
         "ray[tune]",
