@@ -59,18 +59,17 @@ def recalculate_maps_from_mles(
 def get_best_parameters(
     df: pd.DataFrame,
     cost_details: Dict[str, Any],
-    best_parameter_values: Dict[str, Any] = None,
+    priors: Dict[Any, Any],
 ):
     """
     Get best parameters for a dataframe, for certain cost_details
 
     :param df:
     :param cost_details:
-    :param best_parameter_values:
+    :param priors:
     :return:
     """
-    if best_parameter_values is None:
-        best_parameter_values = {}
+    best_parameter_values = {}
 
     mle_cols = [col for col in list(df) if "mle" in col]
     final_map_cols = [col for col in list(df) if "map" in col]
@@ -80,6 +79,11 @@ def get_best_parameters(
     for metric in mle_cols + final_map_cols:
         best_parameter_values["SoftmaxPolicy"][metric] = {}
         best_parameter_values["Group"][metric] = {}
+
+        relevant_columns = [
+            col for col in list(df) if col not in mle_cols + final_map_cols
+        ] + [metric]
+
         for subset in powerset(cost_details["constant_values"]):
             curr_data = df[
                 df.apply(
@@ -96,11 +100,29 @@ def get_best_parameters(
             best_param_rows = df.loc[
                 curr_data.groupby(["trace_pid"] + sim_cols).idxmax()[metric]
             ]
-            best_parameter_values["SoftmaxPolicy"][metric][subset] = best_param_rows
+
+            # correct map for submodels before saving
+            if "map" in metric:
+                prior_name = metric.split("_")[-1]
+                best_param_rows[metric] = best_param_rows.apply(
+                    lambda row: row[metric]
+                    - sum(
+                        [
+                            np.log(priors[prior_name][param][row[param]])
+                            for param in subset
+                        ]
+                    ),
+                    axis=1,
+                )
+
+            best_parameter_values["SoftmaxPolicy"][metric][subset] = best_param_rows[
+                relevant_columns
+            ]
             assert len(best_param_rows) == len(
                 curr_data.drop_duplicates(subset=["trace_pid"] + sim_cols)
             )
 
+            # TODO had bare except here E722
             best_group_parameters = (
                 curr_data.groupby(
                     list(cost_details["constant_values"].keys()) + ["temp"]
@@ -108,6 +130,7 @@ def get_best_parameters(
                 .sum()
                 .idxmax()[metric]
             )
+
             best_group_param_rows = df[
                 df.apply(
                     lambda row: np.all(
@@ -125,6 +148,21 @@ def get_best_parameters(
                     axis=1,
                 )
             ].reset_index(drop=True)
+
+            # correct map for submodels before saving
+            if "map" in metric:
+                prior_name = metric.split("_")[-1]
+                best_group_param_rows[metric] = best_group_param_rows.apply(
+                    lambda row: row[metric]
+                    - sum(
+                        [
+                            np.log(priors[prior_name][param][row[param]])
+                            for param in subset
+                        ]
+                    ),
+                    axis=1,
+                )
+
             best_parameter_values["Group"][metric][subset] = best_group_param_rows
 
     return best_parameter_values
@@ -171,12 +209,13 @@ def add_cost_priors_to_temp_priors(
 
 
 def extract_mles_and_maps(
-    data: pd.DataFrame, cost_details: Dict[str, Any]
+    data: pd.DataFrame, cost_details: Dict[str, Any], priors: Dict[Any, Any]
 ) -> Dict[str, Dict[str, pd.DataFrame]]:
     """
 
     :param data:
     :param cost_details:
+    :params priors:
     :return:
     """
     # save random data first
@@ -184,16 +223,26 @@ def extract_mles_and_maps(
     random_data = data[data["applied_policy"] == "RandomPolicy"].reset_index(drop=True)
     for cost_parameter_arg in cost_details["constant_values"].keys():
         random_data[cost_parameter_arg] = np.nan
-    best_parameter_values["RandomPolicy"] = random_data
+
+    assert all(random_data.apply(lambda row: row["map"] == row["mle"], axis=1))
+    assert all(
+        random_data.apply(
+            lambda row: np.abs((row["training_mle"] + row["test_mle"]) - row["mle"])
+            < np.finfo(np.float32).eps,
+            axis=1,
+        )
+    )
+    relevant_columns = [
+        col for col in list(random_data) if "map" not in col and "mle" not in col
+    ] + ["test_mle"]
+    best_parameter_values["RandomPolicy"] = random_data[relevant_columns]
 
     # now only consider softmax policy
     softmax_data = data[data["applied_policy"] == "SoftmaxPolicy"].reset_index(
         drop=True
     )
 
-    best_parameter_values = get_best_parameters(
-        softmax_data, cost_details, best_parameter_values
-    )
+    best_parameter_values = get_best_parameters(softmax_data, cost_details, priors)
     return best_parameter_values
 
 
@@ -734,6 +783,8 @@ class AnalysisObject:
             get_param_string(cost_kwarg): load_q_file(
                 experiment_setting=self.experiment_setting,
                 cost_function=eval(cost_function),
+                # cost_function=cost_function if eval(cost_function) else None,
+                # cost_function_name=None if eval(cost_function) else,  # TODO
                 cost_params=cost_kwarg,
                 path=q_path,
             )
