@@ -72,7 +72,7 @@ def get_best_parameters(
     best_parameter_values = {}
 
     mle_cols = [col for col in list(df) if "mle" in col]
-    final_map_cols = [col for col in list(df) if "map" in col]
+    final_map_cols = [col for col in list(df) if "map_" in col]
 
     best_parameter_values["SoftmaxPolicy"] = {}
     best_parameter_values["Group"] = {}
@@ -242,7 +242,10 @@ def extract_mles_and_maps(
         drop=True
     )
 
-    best_parameter_values = get_best_parameters(softmax_data, cost_details, priors)
+    best_parameter_values = {
+        **best_parameter_values,
+        **get_best_parameters(softmax_data, cost_details, priors),
+    }
     return best_parameter_values
 
 
@@ -485,9 +488,12 @@ class AnalysisObject:
                         data = pickle.load(f)
 
                     # remove possibility with map without prior
-                    del data["SoftmaxPolicy"]["map"]
-                    del data["RandomPolicy"]["map"]
-                    del data["Group"]["map"]
+                    if "map" in data["SoftmaxPolicy"]:
+                        del data["SoftmaxPolicy"]["map"]
+                    if "map" in data["RandomPolicy"]:
+                        del data["RandomPolicy"]["map"]
+                    if "map" in data["Group"]:
+                        del data["Group"]["map"]
 
                     random_df = data["RandomPolicy"]
                     random_df["Model Name"] = "Null"
