@@ -1,7 +1,7 @@
 """Utility functions for MAP calculation, priors and finding the best parameters."""
 from itertools import product
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Union
+from typing import Any, Dict, List, Union
 
 import dill as pickle
 import numpy as np
@@ -542,23 +542,26 @@ class AnalysisObject:
                         for metric in data[softmax_type].keys():
                             metric_dfs = []
                             for removed_params in data[softmax_type][metric].keys():
-                                curr_df = data[softmax_type][metric][
-                                    removed_params
-                                ].copy(deep=True)
-                                curr_df["Model Name"] = eval(
+                                if removed_params in eval(
                                     self.cost_details[cost_function]["model_name"]
-                                )[removed_params]
-                                curr_df["Number Parameters"] = (
-                                    len(
-                                        self.cost_details[cost_function][
-                                            "constant_values"
-                                        ]
+                                ):
+                                    curr_df = data[softmax_type][metric][
+                                        removed_params
+                                    ].copy(deep=True)
+                                    curr_df["Model Name"] = eval(
+                                        self.cost_details[cost_function]["model_name"]
+                                    )[removed_params]
+                                    curr_df["Number Parameters"] = (
+                                        len(
+                                            self.cost_details[cost_function][
+                                                "constant_values"
+                                            ]
+                                        )
+                                        + 1
+                                        - len(removed_params)
                                     )
-                                    + 1
-                                    - len(removed_params)
-                                )
 
-                                metric_dfs.append(curr_df)
+                                    metric_dfs.append(curr_df)
                             metric_df = pd.concat(metric_dfs).reset_index(drop=True)
                             metric_df.drop(
                                 [
@@ -665,7 +668,6 @@ class AnalysisObject:
         prior: str = None,
         block: str = None,
         include_null: bool = None,
-        preferred_cost: str = None,
     ) -> pd.DataFrame:
         if group is None:
             group = self.group
@@ -675,8 +677,6 @@ class AnalysisObject:
             block = self.block
         if include_null is None:
             include_null = self.include_null
-        if preferred_cost is None:
-            preferred_cost = self.preferred_cost
 
         subset = self.optimization_data[
             (self.optimization_data["applied_policy"] == "SoftmaxPolicy")
@@ -693,9 +693,6 @@ class AnalysisObject:
                         (self.optimization_data["applied_policy"] == "RandomPolicy")
                         & (self.optimization_data["Block"].isin(block))
                         & (self.optimization_data["Group"] == group)
-                        # due to cases where BICs for all cost functions are
-                        # slightly off due to numeric precision
-                        & (self.optimization_data["cost_function"] == preferred_cost)
                     ].copy(deep=True),
                 ]
             )
@@ -706,15 +703,20 @@ class AnalysisObject:
         )
         assert np.all(sum_bic.groupby(["Model Name"]).nunique()["bic"] == 1)
 
-        duplicated_models = sum_bic[sum_bic.duplicated(subset="Model Name")][
-            "Model Name"
-        ].unique()
-        subset = subset.drop(
-            subset[
-                (subset["Model Name"].isin(duplicated_models))
-                & (subset["cost_function"] != preferred_cost)
-            ].index
+        deduplicated_models = sum_bic.drop_duplicates(["Model Name"])[
+            ["Model Name", "cost_function"]
+        ]
+        deduplicated_models_tuples = list(
+            deduplicated_models.itertuples(index=False, name=None)
         )
+
+        subset = subset[
+            subset.apply(
+                lambda row: (row["Model Name"], row["cost_function"])
+                in deduplicated_models_tuples,
+                axis=1,
+            )
+        ]
 
         return subset
 
@@ -724,7 +726,6 @@ class AnalysisObject:
         prior: str = None,
         block: str = None,
         include_null: bool = None,
-        preferred_cost: str = None,
     ) -> pd.DataFrame:
         if group is None:
             group = self.group
@@ -734,8 +735,6 @@ class AnalysisObject:
             block = self.block
         if include_null is None:
             include_null = self.include_null
-        if preferred_cost is None:
-            preferred_cost = self.preferred_cost
 
         # only made for when there is one block
         assert len(block) == 1
@@ -755,7 +754,6 @@ class AnalysisObject:
                 prior=prior,
                 block=block,
                 include_null=include_null,
-                preferred_cost=preferred_cost,
             )
             trial_by_trial_likelihoods = self.compute_trial_by_trial_likelihoods(
                 optimization_data
@@ -767,12 +765,9 @@ class AnalysisObject:
         self,
         optimization_data: pd.DataFrame,
         q_path: Union[str, Path] = None,
-        preferred_cost: Callable = None,
     ) -> pd.DataFrame:
         if q_path is None:
             q_path = self.irl_path.joinpath("cluster/data/q_files")
-        if preferred_cost is None:
-            preferred_cost = eval(self.preferred_cost)
 
         # load all q files
         unique_costs = {}
@@ -881,11 +876,6 @@ class AnalysisObject:
         participant = SymmetricMouselabParticipant(
             experiment_setting=self.experiment_setting,
             num_trials=max([len(trace["actions"]) for trace in traces]),
-            cost_function=preferred_cost,
-            cost_kwargs={
-                key: 0
-                for key in self.cost_details[cost_function]["cost_parameter_args"]
-            },
             policy_function=RandomPolicy,
             policy_kwargs={},
         )
