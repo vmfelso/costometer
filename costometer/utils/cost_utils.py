@@ -140,7 +140,8 @@ def load_q_file(
     with open(filename, "rb") as f:
         compressed_data = f.read()
 
-    info = blosc.decompress(compressed_data)
+    decompressed_data = blosc.decompress(compressed_data)
+    info = pickle.loads(decompressed_data)
 
     return info["q_dictionary"]
 
