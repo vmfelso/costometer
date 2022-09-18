@@ -26,6 +26,7 @@ class GridInference(BaseInference):
         cost_function_name: str = None,
         held_constant_policy_kwargs: Dict[str, Categorical] = None,
         policy_parameters: Dict[str, Categorical] = None,
+        q_files: Dict[str, Any] = None,
     ):
         """
         Grid inference class.
@@ -38,6 +39,7 @@ class GridInference(BaseInference):
         :param cost_function_name:
         :param held_constant_policy_kwargs:
         :param policy_parameters:
+        :param q_files:
         """
         super().__init__(traces)
 
@@ -71,7 +73,9 @@ class GridInference(BaseInference):
         }
         self.optimization_space = self.get_optimization_space()
 
-        if "q_path" in self.held_constant_policy_kwargs:
+        if q_files is not None:
+            self.q_files = q_files
+        elif "q_path" in self.held_constant_policy_kwargs:
             all_cost_kwargs = [
                 dict(zip(self.cost_parameters.keys(), curr_val))
                 for curr_val in itertools.product(
@@ -91,6 +95,8 @@ class GridInference(BaseInference):
                 )
                 for cost_kwargs in all_cost_kwargs
             }
+        else:
+            self.q_files = None
 
     def function_to_optimize(self, config, traces, optimize=True):
         """
@@ -105,7 +111,7 @@ class GridInference(BaseInference):
         cost_kwargs = {key: config[key] for key in self.cost_parameters.keys()}
 
         for key in self.held_constant_policy_kwargs.keys():
-            if key == "q_path":
+            if self.q_files is not None:
                 policy_kwargs["preference"] = self.q_files[
                     get_param_string(cost_kwargs)
                 ]
