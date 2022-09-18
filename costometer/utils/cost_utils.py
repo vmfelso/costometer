@@ -3,6 +3,7 @@ import time
 from itertools import product
 from typing import Any, Dict
 
+import blosc
 import dill as pickle
 import numpy as np
 from mouselab.cost_functions import linear_depth
@@ -74,11 +75,14 @@ def save_q_values_for_cost(
         )
         filename = path.joinpath(
             f"{experiment_setting}/{cost_function_name}/"
-            f"Q_{experiment_setting}_{parameter_string}_{time.strftime('%Y%m%d-%H%M')}.pickle"  # noqa: E501
+            f"Q_{experiment_setting}_{parameter_string}_{time.strftime('%Y%m%d-%H%M')}.dat"  # noqa: E501
         )
 
+        pickled_data = pickle.dumps(info)
+        compressed_pickle = blosc.compress(pickled_data)
+
         with open(filename, "wb") as f:
-            pickle.dump(info, f)
+            f.write(compressed_pickle)
     return info
 
 
@@ -125,7 +129,7 @@ def load_q_file(
     files = list(
         path.glob(
             f"{experiment_setting}/{cost_function_name}/"
-            f"Q_{experiment_setting}_{parameter_string}_*.pickle"
+            f"Q_{experiment_setting}_{parameter_string}_*.dat"
         )  # noqa: E501
     )
 
@@ -134,7 +138,9 @@ def load_q_file(
     # always a list, so why not sort
     filename = sorted(files, reverse=True)[0]
     with open(filename, "rb") as f:
-        info = pickle.load(f)
+        compressed_data = f.read()
+
+    info = blosc.decompress(compressed_data)
 
     return info["q_dictionary"]
 

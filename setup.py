@@ -30,5 +30,6 @@ setup(
         "ray[tune]",
         "statsmodels",
         "tqdm",
+        "blosc",
     ],
 )
