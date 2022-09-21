@@ -22,6 +22,7 @@ def save_q_values_for_cost(
     structure=None,
     path=None,
     verbose=True,
+    backwards=False,
     **env_params,
 ):
     """
@@ -35,6 +36,7 @@ def save_q_values_for_cost(
     :param structure: structure dictionaries extracted from json (what we use for experiments on MTurk to define location of nodes)
     :param path: Pathlib location of place to save output file
     :param verbose: whether to print out progress updates
+    :param backwards: whether to solve with backward planning
     :param env_params: kwargs, any MouselabEnv settings other than cost parameters
     :return: info dictionary which includes"
                 Q dictionary (q_dictionary key), timing, parameters, etc.
@@ -59,7 +61,11 @@ def save_q_values_for_cost(
 
     # solve environment
     _, _, _, info = timed_solve_env(
-        categorical_gym_env, verbose=verbose, save_q=True, ground_truths=ground_truths
+        categorical_gym_env,
+        verbose=verbose,
+        save_q=True,
+        ground_truths=ground_truths,
+        backwards=backwards,
     )
 
     # add experiment and parameter settings to info dict
