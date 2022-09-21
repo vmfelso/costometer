@@ -2,7 +2,7 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 
 import hyperopt.pyll.stochastic as hp_dist  # noqa
 import numpy as np
-from mcl_toolbox.env.generic_mouselab import GenericMouselabEnv
+from mcl_toolbox.env.generic_mouselab import FeatureMouselabPipelineEnv
 from mcl_toolbox.mcrl_modelling.optimizer import get_space
 from mcl_toolbox.mcrl_modelling.optimizer import models as model_classes
 from mcl_toolbox.models.base_learner import Learner
@@ -186,7 +186,7 @@ class SymmetricMCLParticipant(SymmetricMouselabParticipant):
         else:
             cost = -1
 
-        self.mcl_env = GenericMouselabEnv(
+        self.mcl_env = FeatureMouselabPipelineEnv(
             self.num_trials,
             pipeline=self.repeated_pipeline,
             ground_truth=ground_truths,
