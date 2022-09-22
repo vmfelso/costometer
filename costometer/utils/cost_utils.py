@@ -22,7 +22,7 @@ def save_q_values_for_cost(
     structure=None,
     path=None,
     verbose=True,
-    backwards=False,
+    solve_kwargs=None,
     **env_params,
 ):
     """
@@ -36,7 +36,7 @@ def save_q_values_for_cost(
     :param structure: structure dictionaries extracted from json (what we use for experiments on MTurk to define location of nodes)
     :param path: Pathlib location of place to save output file
     :param verbose: whether to print out progress updates
-    :param backwards: whether to solve with backward planning
+    :param solve_kwargs: could include, for example whether to solve with backward planning
     :param env_params: kwargs, any MouselabEnv settings other than cost parameters
     :return: info dictionary which includes"
                 Q dictionary (q_dictionary key), timing, parameters, etc.
@@ -49,6 +49,9 @@ def save_q_values_for_cost(
 
     if cost_function_name is None:
         cost_function_name = cost_function.__name__
+
+    if solve_kwargs is None:
+        solve_kwargs = {}
 
     categorical_gym_env = MouselabEnv.new_symmetric_registered(
         experiment_setting, cost=cost_function(**cost_params), **env_params
@@ -65,7 +68,7 @@ def save_q_values_for_cost(
         verbose=verbose,
         save_q=True,
         ground_truths=ground_truths,
-        backwards=backwards,
+        **solve_kwargs,
     )
 
     # add experiment and parameter settings to info dict
