@@ -342,35 +342,39 @@ def add_processed_columns(
     mouselab_datas,
     experiment_setting,
     ground_truths_dict,
-    q_dictionary,
     node_classification,
     cost_function,
     cost_parameters,
     human=False,
+    q_dictionary=None,
 ):
     env = MouselabEnv.new_symmetric_registered(
         experiment_setting, cost=cost_function(**cost_parameters)
     )
 
     mouselab_datas = add_unbounded_bias(mouselab_datas, env, ground_truths_dict)
-    mouselab_datas = add_bounded_bias(
-        mouselab_datas,
-        ground_truths_dict,
-        q_dictionary,
-        node_classification,
-        cost_function,
-        cost_parameters,
-    )
+    if q_dictionary is not None:
+        mouselab_datas = add_bounded_bias(
+            mouselab_datas,
+            ground_truths_dict,
+            q_dictionary,
+            node_classification,
+            cost_function,
+            cost_parameters,
+        )
     if human:
         raise NotImplementedError
     else:
         mouselab_datas["state"] = mouselab_datas.apply(
             lambda row: add_states_simulated_row(row, experiment_setting), axis=1
         )
-        mouselab_datas["loss"] = mouselab_datas.apply(
-            lambda row: get_trial_loss(row, q_dictionary, final_action=env.term_action),
-            axis=1,
-        )
+        if q_dictionary is not None:
+            mouselab_datas["loss"] = mouselab_datas.apply(
+                lambda row: get_trial_loss(
+                    row, q_dictionary, final_action=env.term_action
+                ),
+                axis=1,
+            )
 
     return mouselab_datas
 
