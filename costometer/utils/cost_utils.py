@@ -8,7 +8,6 @@ import dill as pickle
 import numpy as np
 from mouselab.cost_functions import linear_depth
 from mouselab.exact_utils import timed_solve_env
-from mouselab.graph_utils import annotate_mdp_graph
 from mouselab.mouselab import MouselabEnv
 from numpy.random import default_rng
 
@@ -54,13 +53,11 @@ def save_q_values_for_cost(
         solve_kwargs = {}
 
     categorical_gym_env = MouselabEnv.new_symmetric_registered(
-        experiment_setting, cost=cost_function(**cost_params), **env_params
+        experiment_setting,
+        cost=cost_function(**cost_params),
+        mdp_graph_properties=structure,
+        **env_params,
     )
-    # if info on structure provided, add to mdp graph (probably needed in cost)
-    if structure:
-        categorical_gym_env.mdp_graph = annotate_mdp_graph(
-            categorical_gym_env.mdp_graph, structure
-        )
 
     # solve environment
     _, _, _, info = timed_solve_env(
