@@ -111,6 +111,35 @@ def get_param_string(cost_params):
     return parameter_string
 
 
+def get_cost_params_from_string(parameter_string, cost_parameter_args) -> Dict:
+    return {
+        key: float(param)
+        for key, param in zip(sorted(cost_parameter_args), parameter_string.split("_"))
+    }
+
+
+def get_matching_q_files(
+    experiment_setting,
+    cost_function: str = None,
+    cost_function_name: str = None,
+    cost_params: Dict[Any, Any] = None,
+    path=None,
+):
+    parameter_string = get_param_string(cost_params=cost_params)
+
+    if cost_function_name is None:
+        cost_function_name = cost_function.__name__
+
+    files = list(
+        path.glob(
+            f"{experiment_setting}/{cost_function_name}/"
+            f"*_{experiment_setting}_{parameter_string}*.dat"
+        )  # noqa: E501
+    )
+
+    return files
+
+
 def load_q_file(
     experiment_setting,
     cost_function: str = None,
@@ -127,16 +156,12 @@ def load_q_file(
     :param path: path where data is
     :return: dictionary containing q values
     """
-    parameter_string = get_param_string(cost_params=cost_params)
-
-    if cost_function_name is None:
-        cost_function_name = cost_function.__name__
-
-    files = list(
-        path.glob(
-            f"{experiment_setting}/{cost_function_name}/"
-            f"*_{experiment_setting}_{parameter_string}*.dat"
-        )  # noqa: E501
+    files = get_matching_q_files(
+        experiment_setting=experiment_setting,
+        cost_function=cost_function,
+        cost_function_name=cost_function_name,
+        cost_params=cost_params,
+        path=path,
     )
 
     if len(files) > 1:

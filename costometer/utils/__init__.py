@@ -11,6 +11,8 @@ from costometer.utils.bias_utils import (
     fix_trial_id_for_simulated,
 )
 from costometer.utils.cost_utils import (
+    get_cost_params_from_string,
+    get_matching_q_files,
     get_param_string,
     load_q_file,
     save_q_values_for_cost,
