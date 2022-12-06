@@ -127,6 +127,10 @@ def get_matching_q_files(
 ):
     parameter_string = get_param_string(cost_params=cost_params)
 
+    # don't want "**" in the glob
+    if parameter_string[-1] == "*":
+        parameter_string = parameter_string[:-1]
+
     if cost_function_name is None:
         cost_function_name = cost_function.__name__
 
