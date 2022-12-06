@@ -29,9 +29,9 @@ def generate_model_palette(model_names):
     return static_palette
 
 
-def get_static_palette(static_directory):
+def get_static_palette(static_directory, experiment_name):
     palette_file = static_directory.joinpath(
-        "data/MainExperiment_models_palette.pickle"
+        f"data/{experiment_name}_models_palette.pickle"
     )
     with open(palette_file, "rb") as f:
         palette = pickle.load(f)
