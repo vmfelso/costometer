@@ -27,6 +27,7 @@ class GridInference(BaseInference):
         held_constant_policy_kwargs: Dict[str, Categorical] = None,
         policy_parameters: Dict[str, Categorical] = None,
         q_files: Dict[str, Any] = None,
+        verbose: bool = False,
     ):
         """
         Grid inference class.
@@ -97,6 +98,8 @@ class GridInference(BaseInference):
             }
         else:
             self.q_files = None
+
+        self.verbose = verbose
 
     def function_to_optimize(self, config, traces, optimize=True):
         """
@@ -199,7 +202,7 @@ class GridInference(BaseInference):
         :return:
         """
         self.optimization_results = []
-        for config in tqdm(self.optimization_space):
+        for config in tqdm(self.optimization_space, disable=not self.verbose):
             self.optimization_results.extend(
                 self.function_to_optimize(config, traces=self.traces)
             )
