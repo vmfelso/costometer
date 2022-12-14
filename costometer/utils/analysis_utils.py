@@ -314,7 +314,6 @@ class AnalysisObject:
         experiment_name: str,
         irl_path: Union[str, Path],
         experiment_subdirectory: Union[str, Path],
-        q_path: Union[str, Path] = None,
     ):
         """
 
@@ -328,7 +327,6 @@ class AnalysisObject:
         #  & analysis/{experiment_subdirectory} should exist
         self.irl_path = irl_path
         self.experiment_subdirectory = experiment_subdirectory
-        self.q_path = q_path
 
         # add yaml attributes to object, should be:
         # sessions, cost_functions,
@@ -337,6 +335,9 @@ class AnalysisObject:
 
         if not hasattr(self, "palette_name"):
             self.palette_name = experiment_name
+
+        if not hasattr(self, "q_path"):
+            self.q_path = None
 
         if not self.simulated:
             self.individual_variables = pd.concat(
