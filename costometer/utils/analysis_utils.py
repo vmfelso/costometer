@@ -314,6 +314,7 @@ class AnalysisObject:
         experiment_name: str,
         irl_path: Union[str, Path],
         experiment_subdirectory: Union[str, Path],
+        q_path: Union[str, Path] = None,
     ):
         """
 
@@ -327,6 +328,7 @@ class AnalysisObject:
         #  & analysis/{experiment_subdirectory} should exist
         self.irl_path = irl_path
         self.experiment_subdirectory = experiment_subdirectory
+        self.q_path = q_path
 
         # add yaml attributes to object, should be:
         # sessions, cost_functions,
@@ -756,7 +758,7 @@ class AnalysisObject:
                 include_null=include_null,
             )
             trial_by_trial_likelihoods = self.compute_trial_by_trial_likelihoods(
-                optimization_data
+                optimization_data, q_path=self.q_path
             )
             trial_by_trial_likelihoods.to_csv(trial_by_trial_file)
             return trial_by_trial_likelihoods
@@ -768,6 +770,8 @@ class AnalysisObject:
     ) -> pd.DataFrame:
         if q_path is None:
             q_path = self.irl_path.joinpath("cluster/data/q_files")
+        else:
+            q_path = self.irl_path.joinpath(q_path)
 
         # load all q files
         unique_costs = {}
@@ -783,9 +787,7 @@ class AnalysisObject:
         q_files = {
             get_param_string(cost_kwarg): load_q_file(
                 experiment_setting=self.experiment_setting,
-                cost_function=eval(cost_function),
-                # cost_function=cost_function if eval(cost_function) else None,
-                # cost_function_name=None if eval(cost_function) else,  # TODO
+                cost_function=cost_function,
                 cost_params=cost_kwarg,
                 path=q_path,
             )
