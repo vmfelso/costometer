@@ -131,8 +131,10 @@ def get_matching_q_files(
     if parameter_string[-1] == "*":
         parameter_string = parameter_string[:-1]
 
-    if cost_function_name is None:
+    if cost_function_name is None and callable(cost_function):
         cost_function_name = cost_function.__name__
+    else:
+        cost_function_name = cost_function
 
     files = list(
         path.glob(
