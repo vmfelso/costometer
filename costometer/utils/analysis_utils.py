@@ -227,11 +227,15 @@ def extract_mles_and_maps(
     assert all(random_data.apply(lambda row: row["map"] == row["mle"], axis=1))
     assert all(
         random_data.apply(
-            lambda row: np.abs((row["training_mle"] + row["test_mle"]) - row["mle"])
+            lambda row: np.abs(
+                sum([row[field] for field in random_data.columns if "_mle" in field])
+                - row["mle"]
+            )
             < np.finfo(np.float32).eps,
             axis=1,
         )
     )
+
     relevant_columns = [
         col for col in list(random_data) if "map" not in col and "mle" not in col
     ] + ["test_mle"]
@@ -340,15 +344,21 @@ class AnalysisObject:
             self.q_path = None
 
         if not self.simulated:
-            self.individual_variables = pd.concat(
-                [
-                    pd.read_csv(
-                        self.irl_path.joinpath(
-                            f"data/processed/{session}/individual-variables.csv"
-                        )
+            individual_variables = [
+                pd.read_csv(
+                    self.irl_path.joinpath(
+                        f"data/processed/{session}/individual-variables.csv"
                     )
-                    for session in self.sessions
-                ]
+                )
+                for session in self.sessions
+                if self.irl_path.joinpath(
+                    f"data/processed/{session}/individual-variables.csv"
+                ).is_file()
+            ]
+            self.individual_variables = (
+                pd.concat(individual_variables)
+                if len(individual_variables) > 0
+                else None
             )
 
             self.mouselab_trials = pd.concat(
@@ -362,16 +372,19 @@ class AnalysisObject:
                 ]
             )
 
-            self.quest = pd.concat(
-                [
-                    pd.read_csv(
-                        self.irl_path.joinpath(
-                            f"data/processed/{session}/quiz-and-demo.csv"
-                        )
+            quiz_and_demos = [
+                pd.read_csv(
+                    self.irl_path.joinpath(
+                        f"data/processed/{session}/quiz-and-demo.csv"
                     )
-                    for session in self.sessions
-                ]
-            )
+                )
+                for session in self.sessions
+                if self.irl_path.joinpath(
+                    f"data/processed/{session}/quiz-and-demo.csv"
+                ).is_file()
+            ]
+
+            self.quest = pd.concat(quiz_and_demos) if len(quiz_and_demos) > 0 else None
 
             self.load_session_details()
             self.params = [""]
