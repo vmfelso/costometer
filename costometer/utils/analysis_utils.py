@@ -1,4 +1,5 @@
 """Utility functions for MAP calculation, priors and finding the best parameters."""
+from collections import Counter
 from itertools import product
 from pathlib import Path
 from typing import Any, Dict, List, Union
@@ -101,6 +102,17 @@ def get_best_parameters(
                 curr_data.groupby(["trace_pid"] + sim_cols).idxmax()[metric]
             ]
 
+            assert np.all(
+                [
+                    counter == 1
+                    for pid, counter in Counter(
+                        best_param_rows[["trace_pid"] + sim_cols]
+                        .to_records(index=False)
+                        .tolist()
+                    ).most_common()
+                ]
+            )
+
             # correct map for submodels before saving
             if "map" in metric:
                 prior_name = metric.split("_")[-1]
@@ -148,6 +160,19 @@ def get_best_parameters(
                     axis=1,
                 )
             ].reset_index(drop=True)
+
+            assert np.all(
+                [
+                    counter == 1
+                    for pid, counter in Counter(
+                        best_group_param_rows[
+                            list(cost_details["constant_values"].keys()) + ["temp"]
+                        ]
+                        .to_records(index=False)
+                        .tolist()
+                    ).most_common()
+                ]
+            )
 
             # correct map for submodels before saving
             if "map" in metric:
