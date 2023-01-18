@@ -513,140 +513,154 @@ class AnalysisObject:
         for cost_function in self.cost_functions:
             cost_dfs = []
             for session in self.sessions:
-                mle_and_map_files = [
-                    el
-                    for param in self.params
-                    for el in self.irl_path.glob(
-                        f"data/processed/{session}/{cost_function}"
-                        f"/mle_and_map{param}*.pickle"
-                    )
-                ]
-                for mle_and_map_file in mle_and_map_files:
-                    with open(
-                        mle_and_map_file,
-                        "rb",
-                    ) as f:
-                        data = pickle.load(f)
-
-                    # remove possibility with map without prior
-                    if "map" in data["SoftmaxPolicy"]:
-                        del data["SoftmaxPolicy"]["map"]
-                    if "map" in data["RandomPolicy"]:
-                        del data["RandomPolicy"]["map"]
-                    if "map" in data["Group"]:
-                        del data["Group"]["map"]
-
-                    random_df = data["RandomPolicy"]
-                    random_df["Model Name"] = "Null"
-                    random_df["Number Parameters"] = 0
-
-                    # make long
-                    map_and_mle_cols = [col for col in list(random_df) if "mle" in col]
-                    cols = [
-                        col for col in list(random_df) if col not in map_and_mle_cols
-                    ]
-                    random_df = random_df.melt(
-                        id_vars=cols, value_vars=map_and_mle_cols, var_name="metric"
-                    )
-
-                    if not self.simulated:
-                        random_df["Block"] = random_df["metric"].apply(
-                            lambda metric: metric.split("_")[0]
-                            if metric.split("_")[0]
-                            in self.session_details[session]["trials_per_block"]
-                            else "None"
+                for param in self.params:
+                    mle_and_map_files = list(
+                        self.irl_path.glob(
+                            f"data/processed/{session}{param}/{cost_function}"
+                            f"/mle_and_map*.pickle"
                         )
-                        random_df["Number Trials"] = random_df["Block"].apply(
-                            lambda block: self.session_details[session][
-                                "trials_per_block"
-                            ][block]
-                            if block
-                            in self.session_details[session]["trials_per_block"]
-                            else sum(
-                                self.session_details[session][
-                                    "trials_per_block"
-                                ].values()
-                            )
+                    )
+                    for mle_and_map_file in mle_and_map_files:
+                        with open(
+                            mle_and_map_file,
+                            "rb",
+                        ) as f:
+                            data = pickle.load(f)
+
+                        # remove possibility with map without prior
+                        if "map" in data["SoftmaxPolicy"]:
+                            del data["SoftmaxPolicy"]["map"]
+                        if "map" in data["RandomPolicy"]:
+                            del data["RandomPolicy"]["map"]
+                        if "map" in data["Group"]:
+                            del data["Group"]["map"]
+
+                        random_df = data["RandomPolicy"]
+                        random_df["Model Name"] = "Null"
+                        random_df["Number Parameters"] = 0
+
+                        # make long
+                        map_and_mle_cols = [
+                            col for col in list(random_df) if "mle" in col
+                        ]
+                        cols = [
+                            col
+                            for col in list(random_df)
+                            if col not in map_and_mle_cols
+                        ]
+                        random_df = random_df.melt(
+                            id_vars=cols, value_vars=map_and_mle_cols, var_name="metric"
                         )
-                    else:
-                        random_df["Block"] = "All"
-                        random_df["Number Trials"] = self.number_trials
 
-                    random_df["Prior"] = "None"
-                    random_df["Group"] = False
-
-                    cost_dfs.append(random_df)
-
-                    for softmax_type, group in zip(
-                        ["Group", "SoftmaxPolicy"], [True, False]
-                    ):
-                        for metric in data[softmax_type].keys():
-                            metric_dfs = []
-                            for removed_params in data[softmax_type][metric].keys():
-                                if removed_params in eval(
-                                    self.cost_details[cost_function]["model_name"]
-                                ):
-                                    curr_df = data[softmax_type][metric][
-                                        removed_params
-                                    ].copy(deep=True)
-                                    curr_df["Model Name"] = eval(
-                                        self.cost_details[cost_function]["model_name"]
-                                    )[removed_params]
-                                    curr_df["Number Parameters"] = (
-                                        len(
-                                            self.cost_details[cost_function][
-                                                "constant_values"
-                                            ]
-                                        )
-                                        + 1
-                                        - len(removed_params)
-                                    )
-
-                                    metric_dfs.append(curr_df)
-                            metric_df = pd.concat(metric_dfs).reset_index(drop=True)
-                            metric_df.drop(
-                                [
-                                    col
-                                    for col in list(metric_df)
-                                    if ("map" in col or "mle" in col)
-                                    and (col != metric)
-                                ],
-                                axis=1,
-                                inplace=True,
-                            )
-                            metric_df.rename(columns={metric: "value"}, inplace=True)
-                            metric_df["metric"] = metric
-
-                            if not self.simulated:
-                                metric_df["Block"] = metric_df["metric"].apply(
-                                    lambda metric: metric.split("_")[0]
-                                    if metric.split("_")[0]
-                                    in self.session_details[session]["trials_per_block"]
-                                    else "None"
-                                )
-                                metric_df["Number Trials"] = metric_df["Block"].apply(
-                                    lambda block: self.session_details[session][
-                                        "trials_per_block"
-                                    ][block]
-                                    if block
-                                    in self.session_details[session]["trials_per_block"]
-                                    else sum(
-                                        self.session_details[session][
-                                            "trials_per_block"
-                                        ].values()
-                                    )
-                                )
-                            else:
-                                metric_df["Block"] = "All"
-                                metric_df["Number Trials"] = self.number_trials
-
-                            metric_df["Prior"] = metric_df["metric"].apply(
-                                lambda metric: metric.split("_")[-1]
-                                if metric.split("_")[-1] not in ["mle", "map"]
+                        if not self.simulated:
+                            random_df["Block"] = random_df["metric"].apply(
+                                lambda metric: metric.split("_")[0]
+                                if metric.split("_")[0]
+                                in self.session_details[session]["trials_per_block"]
                                 else "None"
                             )
-                            metric_df["Group"] = group
-                            cost_dfs.append(metric_df)
+                            random_df["Number Trials"] = random_df["Block"].apply(
+                                lambda block: self.session_details[session][
+                                    "trials_per_block"
+                                ][block]
+                                if block
+                                in self.session_details[session]["trials_per_block"]
+                                else sum(
+                                    self.session_details[session][
+                                        "trials_per_block"
+                                    ].values()
+                                )
+                            )
+                        else:
+                            random_df["Block"] = "All"
+                            random_df["Number Trials"] = self.number_trials
+
+                        random_df["Prior"] = "None"
+                        random_df["Group"] = False
+                        random_df["session"] = param
+                        cost_dfs.append(random_df)
+
+                        for softmax_type, group in zip(
+                            ["Group", "SoftmaxPolicy"], [True, False]
+                        ):
+                            for metric in data[softmax_type].keys():
+                                metric_dfs = []
+                                for removed_params in data[softmax_type][metric].keys():
+                                    if removed_params in eval(
+                                        self.cost_details[cost_function]["model_name"]
+                                    ):
+                                        curr_df = data[softmax_type][metric][
+                                            removed_params
+                                        ].copy(deep=True)
+                                        curr_df["Model Name"] = eval(
+                                            self.cost_details[cost_function][
+                                                "model_name"
+                                            ]
+                                        )[removed_params]
+                                        curr_df["Number Parameters"] = (
+                                            len(
+                                                self.cost_details[cost_function][
+                                                    "constant_values"
+                                                ]
+                                            )
+                                            + 1
+                                            - len(removed_params)
+                                        )
+
+                                        metric_dfs.append(curr_df)
+                                metric_df = pd.concat(metric_dfs).reset_index(drop=True)
+                                metric_df.drop(
+                                    [
+                                        col
+                                        for col in list(metric_df)
+                                        if ("map" in col or "mle" in col)
+                                        and (col != metric)
+                                    ],
+                                    axis=1,
+                                    inplace=True,
+                                )
+                                metric_df.rename(
+                                    columns={metric: "value"}, inplace=True
+                                )
+                                metric_df["metric"] = metric
+
+                                if not self.simulated:
+                                    metric_df["Block"] = metric_df["metric"].apply(
+                                        lambda metric: metric.split("_")[0]
+                                        if metric.split("_")[0]
+                                        in self.session_details[session][
+                                            "trials_per_block"
+                                        ]
+                                        else "None"
+                                    )
+                                    metric_df["Number Trials"] = metric_df[
+                                        "Block"
+                                    ].apply(
+                                        lambda block: self.session_details[session][
+                                            "trials_per_block"
+                                        ][block]
+                                        if block
+                                        in self.session_details[session][
+                                            "trials_per_block"
+                                        ]
+                                        else sum(
+                                            self.session_details[session][
+                                                "trials_per_block"
+                                            ].values()
+                                        )
+                                    )
+                                else:
+                                    metric_df["Block"] = "All"
+                                    metric_df["Number Trials"] = self.number_trials
+
+                                metric_df["Prior"] = metric_df["metric"].apply(
+                                    lambda metric: metric.split("_")[-1]
+                                    if metric.split("_")[-1] not in ["mle", "map"]
+                                    else "None"
+                                )
+                                metric_df["Group"] = group
+                                metric_df["session"] = param
+                                cost_dfs.append(metric_df)
 
             cost_df = pd.concat(cost_dfs)
             cost_df["cost_function"] = cost_function
