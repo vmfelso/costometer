@@ -263,7 +263,7 @@ def extract_mles_and_maps(
 
     relevant_columns = [
         col for col in list(random_data) if "map" not in col and "mle" not in col
-    ] + ["test_mle"]
+    ] + ["test_mle" if "test_mle" in random_data else "mle"]
     best_parameter_values["RandomPolicy"] = random_data[relevant_columns]
 
     # now only consider softmax policy
