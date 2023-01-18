@@ -139,7 +139,7 @@ def get_matching_q_files(
     files = list(
         path.glob(
             f"{experiment_setting}/{cost_function_name}/"
-            f"*_{experiment_setting}_{parameter_string}*.dat"
+            f"*_{experiment_setting}_{parameter_string}*dat"
         )  # noqa: E501
     )
 
