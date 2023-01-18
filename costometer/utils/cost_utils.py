@@ -133,7 +133,7 @@ def get_matching_q_files(
 
     if cost_function_name is None and callable(cost_function):
         cost_function_name = cost_function.__name__
-    else:
+    elif cost_function_name is None:
         cost_function_name = cost_function
 
     files = list(
