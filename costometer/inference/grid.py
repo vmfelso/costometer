@@ -27,6 +27,7 @@ class GridInference(BaseInference):
         held_constant_policy_kwargs: Dict[str, Categorical] = None,
         policy_parameters: Dict[str, Categorical] = None,
         q_files: Dict[str, Any] = None,
+        alpha: float = 1,
         verbose: bool = False,
     ):
         """
@@ -84,9 +85,14 @@ class GridInference(BaseInference):
                 )
             ]
 
+            if alpha == 1:
+                alpha_string = ""
+            else:
+                alpha_string = f"_{alpha}"
+
             self.q_files = {
                 get_param_string(cost_kwargs): load_q_file(
-                    experiment_setting=self.participant_kwargs["experiment_setting"],
+                    experiment_setting=self.participant_kwargs["experiment_setting"] + alpha_string,
                     cost_function=self.cost_function
                     if callable(self.cost_function)
                     else None,
