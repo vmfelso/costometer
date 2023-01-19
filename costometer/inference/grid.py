@@ -11,7 +11,7 @@ from tqdm import tqdm
 from costometer.agents.vanilla import Participant
 from costometer.inference.base import BaseInference
 from costometer.utils import get_param_string, load_q_file, traces_to_df
-
+from itertools import product
 
 class GridInference(BaseInference):
     """Grid inference class"""
@@ -27,7 +27,6 @@ class GridInference(BaseInference):
         held_constant_policy_kwargs: Dict[str, Categorical] = None,
         policy_parameters: Dict[str, Categorical] = None,
         q_files: Dict[str, Any] = None,
-        alpha: float = 1,
         verbose: bool = False,
     ):
         """
@@ -61,6 +60,11 @@ class GridInference(BaseInference):
         else:
             self.policy_parameters = policy_parameters
 
+        if "alpha" not in self.policy_parameters:
+            self.policy_parameters["alpha"] = Categorical([1], [1])
+        if "gamma" not in self.policy_parameters:
+            self.policy_parameters["gamma"] = Categorical([1], [1])
+
         self.optimization_results = None
 
         self.prior_probability_dict = {
@@ -85,14 +89,10 @@ class GridInference(BaseInference):
                 )
             ]
 
-            if alpha == 1:
-                alpha_string = ""
-            else:
-                alpha_string = f"_{alpha}"
-
             self.q_files = {
-                get_param_string(cost_kwargs): load_q_file(
-                    experiment_setting=self.participant_kwargs["experiment_setting"] + alpha_string,
+                (get_param_string(cost_kwargs), gamma, alpha): load_q_file(
+                    experiment_setting=self.participant_kwargs["experiment_setting"] +
+                                       f"{gamma if float(gamma) != 1 else ''}{'_'+alpha if float(alpha) != 1 else ''}",
                     cost_function=self.cost_function
                     if callable(self.cost_function)
                     else None,
@@ -100,7 +100,7 @@ class GridInference(BaseInference):
                     cost_params=cost_kwargs,
                     path=self.held_constant_policy_kwargs["q_path"],
                 )
-                for cost_kwargs in all_cost_kwargs
+                for cost_kwargs, gamma, alpha in product(all_cost_kwargs, self.policy_parameters["gamma"].vals, self.policy_parameters["alpha"].vals)
             }
         else:
             self.q_files = None
@@ -122,7 +122,7 @@ class GridInference(BaseInference):
         for key in self.held_constant_policy_kwargs.keys():
             if self.q_files is not None:
                 policy_kwargs["preference"] = self.q_files[
-                    get_param_string(cost_kwargs)
+                    (get_param_string(cost_kwargs), policy_kwargs["gamma"], policy_kwargs["alpha"])
                 ]
             else:
                 policy_kwargs[key] = self.held_constant_policy_kwargs[key]
@@ -132,7 +132,7 @@ class GridInference(BaseInference):
             num_trials=max([len(trace["actions"]) for trace in traces]),
             cost_function=self.cost_function,
             cost_kwargs=cost_kwargs,
-            policy_kwargs=policy_kwargs,
+            policy_kwargs={key : val for key, val in policy_kwargs.items() if key not in ["gamma", "alpha"]},
         )
 
         result = []
