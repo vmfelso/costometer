@@ -555,8 +555,8 @@ class AnalysisObject:
 
                         if not self.simulated:
                             random_df["Block"] = random_df["metric"].apply(
-                                lambda metric: metric.split("_")[0]
-                                if metric.split("_")[0]
+                                lambda metric: "_".join(metric.split("_")[:-2])
+                                if "_".join(metric.split("_")[:-2])
                                 in self.session_details[session]["trials_per_block"]
                                 else "None"
                             )
@@ -627,8 +627,8 @@ class AnalysisObject:
 
                                 if not self.simulated:
                                     metric_df["Block"] = metric_df["metric"].apply(
-                                        lambda metric: metric.split("_")[0]
-                                        if metric.split("_")[0]
+                                        lambda metric: "_".join(metric.split("_")[:-2])
+                                        if "_".join(metric.split("_")[:-2])
                                         in self.session_details[session][
                                             "trials_per_block"
                                         ]
