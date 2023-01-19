@@ -412,7 +412,8 @@ class AnalysisObject:
             self.quest = pd.concat(quiz_and_demos) if len(quiz_and_demos) > 0 else None
 
             self.load_session_details()
-            self.params = [""]
+            if not self.params:
+                self.params = [""]
         else:
             self.session_details = {
                 session: {
