@@ -92,7 +92,7 @@ class GridInference(BaseInference):
             self.q_files = {
                 (get_param_string(cost_kwargs), gamma, alpha): load_q_file(
                     experiment_setting=self.participant_kwargs["experiment_setting"] +
-                                       f"{gamma if float(gamma) != 1 else ''}{'_'+alpha if float(alpha) != 1 else ''}",
+                                       f"{f'{gamma:.3f}' if gamma != 1 else ''}{f'_{alpha:.2f}' if alpha != 1 else ''}",
                     cost_function=self.cost_function
                     if callable(self.cost_function)
                     else None,
