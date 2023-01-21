@@ -145,6 +145,7 @@ class CostRayInference(BaseRayInference):
         policy_parameters: Dict[str, Categorical] = None,
         local_mode: bool = False,
         optimization_settings: Dict[str, Any] = None,
+        num_cpus: int = 1,
     ):
         """
 
@@ -158,6 +159,7 @@ class CostRayInference(BaseRayInference):
         :param policy_parameters:
         :param local_mode:
         :param optimization_settings:
+        :param num_cpus:
         """
         super().__init__(
             traces=traces,
@@ -296,7 +298,7 @@ class CostRayInference(BaseRayInference):
 
         :return:
         """
-        ray.init(logging_level=logging.ERROR, local_mode=self.local_mode)
+        ray.init(logging_level=logging.ERROR, local_mode=self.local_mode, num_cpus=self.num_cpus)
         opt_results = tune.run(
             lambda config: self.function_to_optimize(config, traces=self.traces),
             config=self.optimization_space,
