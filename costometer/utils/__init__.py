@@ -28,4 +28,6 @@ from costometer.utils.trace_utils import (
     get_trace_from_human_row,
     get_trajectories_from_participant_data,
     traces_to_df,
+    adjust_state,
+    adjust_ground_truth
 )
