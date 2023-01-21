@@ -174,6 +174,7 @@ class CostRayInference(BaseRayInference):
         )
 
         self.held_constant_cost_kwargs = held_constant_cost_kwargs
+        self.num_cpus = num_cpus
 
         self.prior_probability_dict = {
             **{
