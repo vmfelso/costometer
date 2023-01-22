@@ -186,8 +186,8 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
         :param optimize:
         :return:
         """
-        policy_kwargs = {key: config[key] for key in self.policy_parameters.keys()}
-        cost_kwargs = {key: config[key] for key in self.cost_parameters.keys()}
+        policy_kwargs = {key: config[key] for key in self.policy_parameters.keys() if key in config}
+        cost_kwargs = {key: config[key] for key in self.cost_parameters.keys() if key in config}
         additional_params = {}
 
         for key, val in self.held_constant_cost_kwargs.items():
@@ -196,10 +196,12 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
 
         for key, val in self.held_constant_policy_kwargs.items():
             if key == "q_function_generator":
-                policy_kwargs["preference"] = val(cost_kwargs, policy_kwargs["gamma"], policy_kwargs["alpha"])
+                q_function_generator = val
             else:
                 policy_kwargs[key] = val
                 additional_params[key] = val
+
+        policy_kwargs["preference"] = q_function_generator(cost_kwargs, policy_kwargs["gamma"], policy_kwargs["alpha"])
 
         participant = self.participant_class(
             **self.participant_kwargs,
@@ -275,11 +277,11 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
         search_space = {
             **{
                 cost_parameter: eval(cost_prior["search_space"])
-                for cost_parameter, cost_prior in self.cost_parameters.items()
+                for cost_parameter, cost_prior in self.cost_parameters.items() if cost_parameter not in self.held_constant_cost_kwargs
             },
             **{
                 policy_parameter: eval(policy_prior["search_space"])
-                for policy_parameter, policy_prior in self.policy_parameters.items()
+                for policy_parameter, policy_prior in self.policy_parameters.items() if policy_parameter not in self.held_constant_policy_kwargs
             },
         }
         return search_space
