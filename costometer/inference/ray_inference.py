@@ -301,7 +301,7 @@ class CostRayInference(BaseRayInference):
         """
         ray.init(logging_level=logging.ERROR, local_mode=self.local_mode, num_cpus=self.num_cpus)
         opt_results = tune.run(
-            lambda config: self.function_to_optimize(config, traces=self.traces),
+            lambda config: self.function_to_optimize(config, traces=deepcopy(self.traces)),
             config=self.optimization_space,
             metric="map_val",
             mode="max",
