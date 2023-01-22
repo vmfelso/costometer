@@ -1,4 +1,4 @@
-"""Optimization with ray[tune]."""
+"""Optimization with hyperopt."""
 import itertools
 import logging
 from copy import deepcopy
@@ -6,17 +6,16 @@ from typing import Any, Callable, Dict, List, Type
 
 import numpy as np
 import pandas as pd
-import ray
 from mouselab.distributions import Categorical
-from ray import tune
+from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
 
 from scipy import stats # noqa
 from costometer.agents.vanilla import Participant
 from costometer.inference.base import BaseInference
 from costometer.utils import get_param_string, load_q_file, traces_to_df, adjust_state, adjust_ground_truth
 
-class BaseRayInference(BaseInference):
-    """Base Ray optimization class"""
+class BaseOptimizerInference(BaseInference):
+    """Base Optimizer optimization class"""
 
     def __init__(
         self,
@@ -28,7 +27,6 @@ class BaseRayInference(BaseInference):
         cost_function_name: str = None,
         held_constant_policy_kwargs: Dict[str, Any] = None,
         policy_parameters: Dict[str, Any] = None,
-        local_mode: bool = True,
         optimization_settings: Dict[str, Any] = None,
     ):
         """
@@ -41,7 +39,6 @@ class BaseRayInference(BaseInference):
         :param cost_function_name:
         :param held_constant_policy_kwargs:
         :param policy_parameters:
-        :param local_mode:
         """
         super().__init__(traces)
 
@@ -64,8 +61,6 @@ class BaseRayInference(BaseInference):
             self.policy_parameters = {}
         else:
             self.policy_parameters = policy_parameters
-
-        self.local_mode = local_mode
 
         if optimization_settings is None:
             self.optimization_settings = {}
@@ -130,7 +125,7 @@ class BaseRayInference(BaseInference):
         return results_df.join(config_columns)
 
 
-class CostRayInference(BaseRayInference):
+class HyperoptOptimizerInference(BaseOptimizerInference):
     """"Optimization over grid"""
 
     def __init__(
@@ -143,9 +138,7 @@ class CostRayInference(BaseRayInference):
         held_constant_policy_kwargs: Dict[str, Categorical] = None,
         held_constant_cost_kwargs: Dict[str, Categorical] = None,
         policy_parameters: Dict[str, Categorical] = None,
-        local_mode: bool = False,
         optimization_settings: Dict[str, Any] = None,
-        num_cpus: int = 1,
     ):
         """
 
@@ -157,9 +150,7 @@ class CostRayInference(BaseRayInference):
         :param held_constant_policy_kwargs:
         :parm held_constant_cost_kwargs:
         :param policy_parameters:
-        :param local_mode:
         :param optimization_settings:
-        :param num_cpus:
         """
         super().__init__(
             traces=traces,
@@ -169,12 +160,10 @@ class CostRayInference(BaseRayInference):
             cost_parameters=cost_parameters,
             held_constant_policy_kwargs=held_constant_policy_kwargs,
             policy_parameters=policy_parameters,
-            local_mode=local_mode,
             optimization_settings=optimization_settings,
         )
 
         self.held_constant_cost_kwargs = held_constant_cost_kwargs
-        self.num_cpus = num_cpus
 
         self.prior_probability_dict = {
             **{
@@ -187,7 +176,8 @@ class CostRayInference(BaseRayInference):
             },
         }
         self.optimization_space = self.get_optimization_space()
-
+        self.best_parameters = None
+        self.trials = None
     def function_to_optimize(self, config, traces, optimize=True):
         """
 
@@ -255,7 +245,6 @@ class CostRayInference(BaseRayInference):
                 trace_info = {key: trace[key] for key in trace.keys() if "sim_" in key}
                 result.append(
                     {
-                        "participant_likelihood": participant_likelihood,
                         "map_val": map_val,
                         "mle": mle,
                         "trace_pid": trace["pid"][0],
@@ -272,8 +261,9 @@ class CostRayInference(BaseRayInference):
             return result
         else:
             return {
-                "map_val": np.sum([res["test_map"] for res in result]),
+                "loss": - np.sum([res["test_map"] for res in result]),
                 "result": result,
+                "status": STATUS_OK,
             }
 
     def get_optimization_space(self):
@@ -299,69 +289,37 @@ class CostRayInference(BaseRayInference):
 
         :return:
         """
-        ray.init(logging_level=logging.ERROR, local_mode=self.local_mode, num_cpus=self.num_cpus)
-        opt_results = tune.run(
-            lambda config: self.function_to_optimize(config, traces=deepcopy(self.traces)),
-            config=self.optimization_space,
-            metric="map_val",
-            mode="max",
-            **self.optimization_settings,
-        )
-        self.optimization_results = [
-            item
-            for opt_result in opt_results.results.values()
-            for item in opt_result["result"]
-        ]
-        ray.shutdown()
+        trials = Trials()
+        fmin(lambda config: self.function_to_optimize(config, traces=deepcopy(self.traces)),
+             space=self.optimization_space,
+             algo=tpe.suggest,
+             trials=trials,
+             **self.optimization_settings)
+        self.best_parameters = trials.best_trial
+        self.trials = trials
+        return self.best_parameters
 
     def get_best_parameters(self):
         """
 
         :return:
         """
-        optimization_results = self.get_optimization_results()
-
-        sim_cols = [col for col in list(optimization_results) if "sim_" in col]
-        best_param_rows = optimization_results.iloc[
-            optimization_results.groupby(["trace_pid"] + sim_cols).idxmax()["mle"]
-        ]
-
-        best_results = []
-        for trace in self.traces:
-            best_row = best_param_rows[
-                np.all(
-                    best_param_rows[sim_cols]
-                    == [trace[sim_col] for sim_col in sim_cols],
-                    axis=1,
-                )
-                & (best_param_rows["trace_pid"] == trace["pid"][0])
-            ]
-            assert len(best_row) == 1
-            best_results.extend(best_row.to_dict("records"))
-        return [
-            {
-                key: trace[key]
-                for key in {**self.policy_parameters, **self.cost_parameters}
-            }
-            for trace in best_results
-        ]
+        return self.best
 
     def get_output_df(self):
         """
 
         :return:
         """
-        traces = deepcopy(self.traces)
-        for best_params, trace in zip(self.get_best_parameters(), traces):
-            trace["pi"] = self.function_to_optimize(
-                best_params, traces=[trace], optimize=False
-            )[0]
-        trace_df = traces_to_df(traces)
-        return trace_df
+        return pd.DataFrame.from_dict([trial["result"]["result"][0] for trial in self.trials.trials])
 
     def get_optimization_results(self):
         """
 
         :return:
         """
-        return pd.DataFrame(self.optimization_results)
+        if not self.trials:
+            # First optimize with the run method
+            return None
+        else:
+            return {"trials": self.trials, "res": self.function_to_optimize({param: param_val[0] for param , param_val in self.best_parameters["misc"]["vals"].items()}, deepcopy(self.traces), optimize=False)}
