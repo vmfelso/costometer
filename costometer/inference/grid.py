@@ -132,13 +132,12 @@ class GridInference(BaseInference):
         for key, val in self.held_constant_policy_kwargs.items():
             if key == "q_function_generator":
                 q_function_generator = val
+                policy_kwargs["preference"] = q_function_generator(
+                    cost_kwargs, policy_kwargs["gamma"], policy_kwargs["alpha"]
+                )
             else:
                 policy_kwargs[key] = val
                 additional_params[key] = val
-
-        policy_kwargs["preference"] = q_function_generator(
-            cost_kwargs, policy_kwargs["gamma"], policy_kwargs["alpha"]
-        )
 
         participant = self.participant_class(
             **self.participant_kwargs,
