@@ -1,6 +1,7 @@
 """Grid inference class"""
 import itertools
 from copy import deepcopy
+from itertools import product
 from typing import Any, Callable, Dict, List, Type
 
 import numpy as np
@@ -10,8 +11,8 @@ from tqdm import tqdm
 
 from costometer.agents.vanilla import Participant
 from costometer.inference.base import BaseInference
-from costometer.utils import get_param_string, load_q_file, traces_to_df
-from itertools import product
+from costometer.utils import adjust_state, get_param_string, load_q_file, traces_to_df
+
 
 class GridInference(BaseInference):
     """Grid inference class"""
@@ -91,8 +92,9 @@ class GridInference(BaseInference):
 
             self.q_files = {
                 (get_param_string(cost_kwargs), gamma, alpha): load_q_file(
-                    experiment_setting=self.participant_kwargs["experiment_setting"] +
-                                       f"{f'{gamma:.3f}' if gamma != 1 else ''}{f'_{alpha:.2f}' if alpha != 1 else ''}",
+                    experiment_setting=self.participant_kwargs["experiment_setting"]
+                    + f"{f'{gamma:.3f}' if gamma != 1 else ''}"
+                    f"{f'_{alpha:.2f}' if alpha != 1 else ''}",
                     cost_function=self.cost_function
                     if callable(self.cost_function)
                     else None,
@@ -100,7 +102,11 @@ class GridInference(BaseInference):
                     cost_params=cost_kwargs,
                     path=self.held_constant_policy_kwargs["q_path"],
                 )
-                for cost_kwargs, gamma, alpha in product(all_cost_kwargs, self.policy_parameters["gamma"].vals, self.policy_parameters["alpha"].vals)
+                for cost_kwargs, gamma, alpha in product(
+                    all_cost_kwargs,
+                    self.policy_parameters["gamma"].vals,
+                    self.policy_parameters["alpha"].vals,
+                )
             }
         else:
             self.q_files = None
@@ -115,28 +121,62 @@ class GridInference(BaseInference):
         :param optimize:
         :return:
         """
+        policy_kwargs = {
+            key: config[key] for key in self.policy_parameters.keys() if key in config
+        }
+        cost_kwargs = {
+            key: config[key] for key in self.cost_parameters.keys() if key in config
+        }
+        additional_params = {}
 
-        policy_kwargs = {key: config[key] for key in self.policy_parameters.keys()}
-        cost_kwargs = {key: config[key] for key in self.cost_parameters.keys()}
-
-        for key in self.held_constant_policy_kwargs.keys():
-            if self.q_files is not None:
-                policy_kwargs["preference"] = self.q_files[
-                    (get_param_string(cost_kwargs), policy_kwargs["gamma"], policy_kwargs["alpha"])
-                ]
+        for key, val in self.held_constant_policy_kwargs.items():
+            if key == "q_function_generator":
+                q_function_generator = val
             else:
-                policy_kwargs[key] = self.held_constant_policy_kwargs[key]
+                policy_kwargs[key] = val
+                additional_params[key] = val
+
+        policy_kwargs["preference"] = q_function_generator(
+            cost_kwargs, policy_kwargs["gamma"], policy_kwargs["alpha"]
+        )
 
         participant = self.participant_class(
             **self.participant_kwargs,
             num_trials=max([len(trace["actions"]) for trace in traces]),
             cost_function=self.cost_function,
             cost_kwargs=cost_kwargs,
-            policy_kwargs={key : val for key, val in policy_kwargs.items() if key not in ["gamma", "alpha"]},
+            policy_kwargs={
+                key: val
+                for key, val in policy_kwargs.items()
+                if key not in ["gamma", "alpha"]
+            },
         )
 
         result = []
         for trace in traces:
+            trace["states"] = [
+                [
+                    adjust_state(
+                        state,
+                        policy_kwargs["alpha"],
+                        policy_kwargs["gamma"],
+                        participant.mouselab_envs[0].mdp_graph.nodes.data("depth"),
+                        True,
+                    )
+                    for state in trial
+                ]
+                for trial in trace["states"]
+            ]
+            # trace["ground_truth"] = [
+            #     adjust_ground_truth(
+            #         ground_truth,
+            #         policy_kwargs["alpha"],
+            #         policy_kwargs["gamma"],
+            #         participant.mouselab_envs[0].mdp_graph.nodes.data("depth"),
+            #     )
+            #     for ground_truth in trace["ground_truth"]
+            # ]
+
             participant_likelihood = participant.compute_likelihood(trace)
 
             if optimize is True:
@@ -172,6 +212,7 @@ class GridInference(BaseInference):
                         **block_mles,
                         **trace_info,
                         **config,
+                        **additional_params,
                     }
                 )
             else:
@@ -191,7 +232,6 @@ class GridInference(BaseInference):
             }.items()
         ]
         config_dicts = list(itertools.product(*possible_parameters))
-
         # restructure from [{p1:v1},{p2:v2}... to [{p1:v1,p2:v2....
         search_space = []
         for config_setting in config_dicts:
@@ -210,7 +250,7 @@ class GridInference(BaseInference):
         self.optimization_results = []
         for config in tqdm(self.optimization_space, disable=not self.verbose):
             self.optimization_results.extend(
-                self.function_to_optimize(config, traces=self.traces)
+                self.function_to_optimize(config, traces=deepcopy(self.traces))
             )
 
     def get_best_parameters(self):

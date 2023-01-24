@@ -1,15 +1,29 @@
 """These functions are used to transform human data to traces"""
+from typing import List
+
+import numpy as np
 import pandas as pd
+from mouselab.distributions import Categorical
 from mouselab.env_utils import get_num_actions
 from mouselab.envs.registry import registry
 from mouselab.mouselab import MouselabEnv
-import numpy as np
-from mouselab.distributions import Categorical
+
 
 def adjust_ground_truth(ground_truth, alpha, gamma, depth_view):
     return np.asarray(
-    [round(np.sign(ground_truth[node]) * (np.abs(ground_truth[node]) ** alpha) * gamma ** (depth - 1),3) if depth != 0 else 0 for node, depth in
-    depth_view])
+        [
+            round(
+                np.sign(ground_truth[node])
+                * (np.abs(ground_truth[node]) ** alpha)
+                * gamma ** (depth - 1),
+                3,
+            )
+            if depth != 0
+            else 0
+            for node, depth in depth_view
+        ]
+    )
+
 
 def adjust_state(state, alpha, gamma, depth_view, include_last_action=False):
     new_state = []
@@ -17,15 +31,24 @@ def adjust_state(state, alpha, gamma, depth_view, include_last_action=False):
         if depth == 0:
             # starting node
             new_state.append(node)
-        elif hasattr(state[node], 'sample'):
-            vals = [round(np.sign(val) * (np.abs(val) ** alpha) * gamma ** (depth - 1), 3) for val in state[node].vals]
+        elif hasattr(state[node], "sample"):
+            vals = [
+                round(np.sign(val) * (np.abs(val) ** alpha) * gamma ** (depth - 1), 3)
+                for val in state[node].vals
+            ]
             new_state.append(Categorical(vals, state[node].probs))
         else:
-            val = round(np.sign(state[node]) * (np.abs(state[node]) ** alpha) * gamma ** (depth - 1), 3)
+            val = round(
+                np.sign(state[node])
+                * (np.abs(state[node]) ** alpha)
+                * gamma ** (depth - 1),
+                3,
+            )
             new_state.append(val)
     if include_last_action:
         new_state.append(state[-1])
     return tuple(new_state)
+
 
 def get_row_property(row, column):
     if isinstance(row[column], str):
@@ -135,6 +158,7 @@ def get_trace_from_human_row(
 def get_trajectories_from_participant_data(
     mouselab_mdp_dataframe,
     experiment_setting: str = "high_increasing",
+    blocks: List[str] = None,
     include_last_action: bool = False,
 ):
     """
@@ -142,9 +166,15 @@ def get_trajectories_from_participant_data(
 
     :param mouselab_mdp_dataframe: Dataframe of participant mouselab-mdp trials
     :param experiment_setting:
+    :param blocks:
     :param include_last_action:
     :return: Dictionary with same structure as a `trace` in mouselab-mdp
     """  # noqa: E501
+    if blocks:
+        mouselab_mdp_dataframe = mouselab_mdp_dataframe[
+            mouselab_mdp_dataframe["block"].isin(blocks)
+        ]
+
     # split dataframes into dataframe per subject
     mouselab_dict_traces = {
         pid: pid_df.apply(
