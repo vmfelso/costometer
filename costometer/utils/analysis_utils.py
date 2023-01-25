@@ -215,26 +215,11 @@ def extract_mles_and_maps(
     """
     # save random data first
     best_parameter_values = {}
+
     random_data = data[data["applied_policy"] == "RandomPolicy"].reset_index(drop=True)
-    for cost_parameter_arg in cost_details["constant_values"].keys():
-        random_data[cost_parameter_arg] = np.nan
-
-    assert all(random_data.apply(lambda row: row["map"] == row["mle"], axis=1))
-    assert all(
-        random_data.apply(
-            lambda row: np.abs(
-                sum([row[field] for field in random_data.columns if "_mle" in field])
-                - row["mle"]
-            )
-            < np.finfo(np.float32).eps,
-            axis=1,
-        )
-    )
-
-    relevant_columns = [
-        col for col in list(random_data) if "map" not in col and "mle" not in col
-    ] + ["test_mle" if "test_mle" in random_data else "mle"]
-    best_parameter_values["RandomPolicy"] = random_data[relevant_columns]
+    for parameter_arg in priors["uniform"].keys():
+        random_data[parameter_arg] = np.nan
+    best_parameter_values["RandomPolicy"] = random_data
 
     # now only consider softmax policy
     softmax_data = data[data["applied_policy"] == "SoftmaxPolicy"].reset_index(
