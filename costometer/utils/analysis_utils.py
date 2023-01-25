@@ -197,12 +197,14 @@ def add_cost_priors_to_temp_priors(
     softmax_df: pd.DataFrame,
     cost_details: Dict[str, Any],
     temp_prior_details: Dict[str, Any],
+    additional_params=List[str],
 ) -> Dict[str, Dict[str, Any]]:
     """
 
     :param softmax_df:
     :param cost_details:
     :param temp_prior_details:
+    :param additional_params:
     :return:
     """
     full_priors = {}
@@ -215,7 +217,7 @@ def add_cost_priors_to_temp_priors(
             inverse=prior_inputs["inverse"],
         )
         priors["temp"] = dict(zip(temp_prior.vals, temp_prior.probs))
-        for cost_parameter_arg in cost_details["constant_values"]:
+        for cost_parameter_arg in cost_details["constant_values"] + additional_params:
             numeric_values = softmax_df[cost_parameter_arg][
                 softmax_df[cost_parameter_arg].apply(
                     lambda entry: not isinstance(entry, str)
