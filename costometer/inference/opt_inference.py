@@ -1,18 +1,17 @@
 """Optimization with hyperopt."""
-import itertools
-import logging
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Type
 
 import numpy as np
 import pandas as pd
+from hyperopt import STATUS_OK, Trials, fmin, hp, tpe  # noqa
 from mouselab.distributions import Categorical
-from hyperopt import fmin, tpe, hp, Trials, STATUS_OK
+from scipy import stats  # noqa
 
-from scipy import stats # noqa
 from costometer.agents.vanilla import Participant
 from costometer.inference.base import BaseInference
-from costometer.utils import get_param_string, load_q_file, traces_to_df, adjust_state, adjust_ground_truth
+from costometer.utils import adjust_state, traces_to_df
+
 
 class BaseOptimizerInference(BaseInference):
     """Base Optimizer optimization class"""
@@ -167,17 +166,26 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
 
         self.prior_probability_dict = {
             **{
-                cost_parameter: eval(cost_prior["prior"])
-                for cost_parameter, cost_prior in self.cost_parameters.items() if cost_parameter not in held_constant_cost_kwargs
+                cost_parameter: cost_prior["prior"]
+                for cost_parameter, cost_prior in self.cost_parameters.items()
+                if cost_parameter not in held_constant_cost_kwargs
             },
             **{
-                policy_parameter: eval(policy_prior["prior"])
-                for policy_parameter, policy_prior in self.policy_parameters.items() if policy_parameter not in held_constant_policy_kwargs
+                policy_parameter: policy_prior["prior"]
+                for policy_parameter, policy_prior in self.policy_parameters.items()
+                if policy_parameter not in held_constant_policy_kwargs
             },
         }
+        # make callable if not already a function
+        self.prior_probability_dict = {
+            key: eval(val) if isinstance(val, str) else val
+            for key, val in self.prior_probability_dict.items()
+        }
+
         self.optimization_space = self.get_optimization_space()
         self.best_parameters = None
         self.trials = None
+
     def function_to_optimize(self, config, traces, optimize=True):
         """
 
@@ -186,8 +194,12 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
         :param optimize:
         :return:
         """
-        policy_kwargs = {key: config[key] for key in self.policy_parameters.keys() if key in config}
-        cost_kwargs = {key: config[key] for key in self.cost_parameters.keys() if key in config}
+        policy_kwargs = {
+            key: config[key] for key in self.policy_parameters.keys() if key in config
+        }
+        cost_kwargs = {
+            key: config[key] for key in self.cost_parameters.keys() if key in config
+        }
         additional_params = {}
 
         for key, val in self.held_constant_cost_kwargs.items():
@@ -201,30 +213,55 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
                 policy_kwargs[key] = val
                 additional_params[key] = val
 
-        policy_kwargs["preference"] = q_function_generator(cost_kwargs, policy_kwargs["gamma"], policy_kwargs["alpha"])
+        policy_kwargs["preference"] = q_function_generator(
+            cost_kwargs, policy_kwargs["gamma"], policy_kwargs["alpha"]
+        )
 
         participant = self.participant_class(
             **self.participant_kwargs,
             num_trials=max([len(trace["actions"]) for trace in traces]),
             cost_function=self.cost_function,
             cost_kwargs=cost_kwargs,
-            policy_kwargs={key : val for key, val in policy_kwargs.items() if key not in ["gamma", "alpha"]},
+            policy_kwargs={
+                key: val
+                for key, val in policy_kwargs.items()
+                if key not in ["gamma", "alpha"]
+            },
         )
 
         result = []
         for trace in traces:
-            trace["states"] = [[adjust_state(state, policy_kwargs["alpha"], policy_kwargs["gamma"], participant.mouselab_envs[0].mdp_graph.nodes.data("depth"), True) for state in trial] for trial in trace["states"]]
-            trace["ground_truth"] = [adjust_state(ground_truth, policy_kwargs["alpha"], policy_kwargs["gamma"],
-                                             participant.mouselab_envs[0].mdp_graph.nodes.data("depth"), True) for ground_truth in trace["ground_truth"]]
+            trace["states"] = [
+                [
+                    adjust_state(
+                        state,
+                        policy_kwargs["alpha"],
+                        policy_kwargs["gamma"],
+                        participant.mouselab_envs[0].mdp_graph.nodes.data("depth"),
+                        True,
+                    )
+                    for state in trial
+                ]
+                for trial in trace["states"]
+            ]
+            # trace["ground_truth"] = [
+            #     adjust_ground_truth(
+            #         ground_truth,
+            #         policy_kwargs["alpha"],
+            #         policy_kwargs["gamma"],
+            #         participant.mouselab_envs[0].mdp_graph.nodes.data("depth"),
+            #     )
+            #     for ground_truth in trace["ground_truth"]
+            # ]
 
             # participant.agent.env
             participant_likelihood = participant.compute_likelihood(trace)
 
             prior_prob = np.sum(
-                    [
-                        prior_function(config[param])
-                        for param, prior_function in self.prior_probability_dict.items()
-                    ]
+                [
+                    prior_function(config[param])
+                    for param, prior_function in self.prior_probability_dict.items()
+                ]
             )
             if optimize is True:
                 # sum over actions in trial, then trials
@@ -232,17 +269,6 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
                 mle = np.sum(trial_mles)
                 map_val = mle + prior_prob
 
-                # save mles for blocks (if they exist)
-                block_mles = {}
-                if "block" in trace:
-                    block_indices = {
-                        block: [curr_block == block for curr_block in trace["block"]]
-                        for block in np.unique(trace["block"])
-                    }
-                    block_mles = {
-                        f"{block}_map": np.sum(trial_mles[block_indices[block]]) + prior_prob
-                        for block in block_indices.keys()
-                    }
                 # simulated trace, save info used to simulate data
                 trace_info = {key: trace[key] for key in trace.keys() if "sim_" in key}
                 result.append(
@@ -250,10 +276,9 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
                         "map_val": map_val,
                         "mle": mle,
                         "trace_pid": trace["pid"][0],
-                        **block_mles,
                         **trace_info,
                         **config,
-                        **additional_params
+                        **additional_params,
                     }
                 )
             else:
@@ -263,7 +288,7 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
             return result
         else:
             return {
-                "loss": - np.sum([res["test_map"] for res in result]),
+                "loss": -np.sum([res["map_val"] for res in result]),
                 "result": result,
                 "status": STATUS_OK,
             }
@@ -277,11 +302,13 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
         search_space = {
             **{
                 cost_parameter: eval(cost_prior["search_space"])
-                for cost_parameter, cost_prior in self.cost_parameters.items() if cost_parameter not in self.held_constant_cost_kwargs
+                for cost_parameter, cost_prior in self.cost_parameters.items()
+                if cost_parameter not in self.held_constant_cost_kwargs
             },
             **{
                 policy_parameter: eval(policy_prior["search_space"])
-                for policy_parameter, policy_prior in self.policy_parameters.items() if policy_parameter not in self.held_constant_policy_kwargs
+                for policy_parameter, policy_prior in self.policy_parameters.items()
+                if policy_parameter not in self.held_constant_policy_kwargs
             },
         }
         return search_space
@@ -292,11 +319,15 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
         :return:
         """
         trials = Trials()
-        fmin(lambda config: self.function_to_optimize(config, traces=deepcopy(self.traces)),
-             space=self.optimization_space,
-             algo=tpe.suggest,
-             trials=trials,
-             **self.optimization_settings)
+        fmin(
+            lambda config: self.function_to_optimize(
+                config, traces=deepcopy(self.traces)
+            ),
+            space=self.optimization_space,
+            algo=tpe.suggest,
+            trials=trials,
+            **self.optimization_settings,
+        )
         self.best_parameters = trials.best_trial
         self.trials = trials
         return self.best_parameters
@@ -313,7 +344,9 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
 
         :return:
         """
-        return pd.DataFrame.from_dict([trial["result"]["result"][0] for trial in self.trials.trials])
+        return pd.DataFrame.from_dict(
+            [trial["result"]["result"][0] for trial in self.trials.trials]
+        )
 
     def get_optimization_results(self):
         """
@@ -324,4 +357,16 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
             # First optimize with the run method
             return None
         else:
-            return {"trials": self.trials, "res": self.function_to_optimize({param: param_val[0] for param , param_val in self.best_parameters["misc"]["vals"].items()}, deepcopy(self.traces), optimize=False)}
+            return {
+                "trials": self.trials,
+                "res": self.function_to_optimize(
+                    {
+                        param: param_val[0]
+                        for param, param_val in self.best_parameters["misc"][
+                            "vals"
+                        ].items()
+                    },
+                    deepcopy(self.traces),
+                    optimize=False,
+                ),
+            }
