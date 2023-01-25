@@ -189,17 +189,6 @@ class GridInference(BaseInference):
                     ]
                 )
 
-                # save mles for blocks (if they exist)
-                block_mles = {}
-                if "block" in trace:
-                    block_indices = {
-                        block: [curr_block == block for curr_block in trace["block"]]
-                        for block in np.unique(trace["block"])
-                    }
-                    block_mles = {
-                        f"{block}_mle": np.sum(trial_mles[block_indices[block]])
-                        for block in block_indices.keys()
-                    }
                 # simulated trace, save info used to simulate data
                 trace_info = {key: trace[key] for key in trace.keys() if "sim_" in key}
                 result.append(
@@ -208,7 +197,6 @@ class GridInference(BaseInference):
                         "map": map_val,
                         "mle": mle,
                         "trace_pid": trace["pid"][0],
-                        **block_mles,
                         **trace_info,
                         **config,
                         **additional_params,
