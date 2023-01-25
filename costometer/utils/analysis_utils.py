@@ -25,38 +25,6 @@ from costometer.utils.trace_utils import (
 )
 
 
-def recalculate_maps_from_mles(
-    data: pd.DataFrame, full_priors: Dict[str, Dict[Any, Any]]
-) -> pd.DataFrame:
-    """# noqa: E501
-    Used to recalculate MAPs from MLEs.
-    Needed because sometimes on the cluster you might only submit one temperature or cost combination at a time.
-
-    :param data:
-    :param full_priors:
-    :return:
-    """
-    mle_cols = [col for col in list(data) if "mle" in col]
-
-    for prior_name, prior_dict in full_priors.items():
-        for mle_field in mle_cols:
-            map_field = mle_field.replace("mle", "map")
-            # map column will be incorrect for static inference as
-            # cost prior is not added in, so fine to overwrite
-            data[f"{map_field}_{prior_name}"] = data.apply(
-                lambda row: row[mle_field]
-                + np.sum(
-                    [
-                        np.log(prior_dict[param_key][row[param_key]])
-                        for param_key in prior_dict.keys()
-                    ]
-                ),
-                axis=1,
-            )
-
-    return data
-
-
 def get_best_parameters(
     df: pd.DataFrame,
     cost_details: Dict[str, Any],
