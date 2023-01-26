@@ -77,8 +77,8 @@ def get_best_parameters(
             # some might be duplicated (e.g. pid 0 with sim cost 1 vs 2)
             sim_cols = [col for col in list(curr_data) if "sim_" in col]
 
-            best_param_rows = df.loc[  #
-                curr_data.groupby(["trace_pid"] + sim_cols).idxmax()[
+            best_param_rows = curr_data.loc[  #
+                curr_data.groupby(["trace_pid"] + sim_cols).idxmax(numeric_only=True)[
                     f"map_{prior_type}"
                 ]
             ]
