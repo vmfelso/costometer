@@ -196,43 +196,6 @@ def get_temp_prior(
     return categorical_dist
 
 
-def find_best_parameters(fitting_data_df, function="min", objective="loss"):
-    """
-
-    :param fitting_data_df:
-    :param function:
-    :param objective:
-    :return:
-    """
-    sim_cols = [col for col in list(fitting_data_df) if "sim_" in col]
-
-    best_values = (
-        fitting_data_df.groupby(["trace_pid"] + sim_cols)
-        .aggregate(function)[objective]
-        .to_dict()
-    )
-
-    if len(sim_cols) > 0:
-        best_param_rows = fitting_data_df[
-            fitting_data_df.apply(
-                lambda row: best_values[
-                    tuple([row[sim_col] for sim_col in ["trace_pid"] + sim_cols])
-                ]
-                == row["loss"],
-                axis=1,
-            )
-        ]
-
-    else:
-        best_param_rows = fitting_data_df[
-            fitting_data_df.apply(
-                lambda row: best_values[row["trace_pid"]] == row["loss"], axis=1
-            )
-        ]
-
-    return best_param_rows
-
-
 class AnalysisObject:
     def __init__(
         self,
