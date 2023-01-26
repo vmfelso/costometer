@@ -46,7 +46,8 @@ def get_best_parameters(
     for prior_type, prior_dict in priors.items():
         # save best parameters for each prior
         best_parameter_values[prior_type] = {}
-        for subset in powerset(cost_details["constant_values"]):
+        # uniform should always be provided
+        for subset in powerset(priors["uniform"]):
             # subset dataframe
             curr_data = df[
                 df.apply(
