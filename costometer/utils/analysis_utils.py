@@ -58,7 +58,7 @@ def get_best_parameters(
                     == len(list(subset)),
                     axis=1,
                 )
-            ]
+            ].copy(deep=True).reset_index(drop=True)
 
             # add prior
             curr_data[f"map_{prior_type}"] = curr_data.apply(
