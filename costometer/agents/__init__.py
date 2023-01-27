@@ -1,2 +1,1 @@
-from costometer.agents.mcl import SymmetricMCLParticipant
 from costometer.agents.vanilla import SymmetricMouselabParticipant
