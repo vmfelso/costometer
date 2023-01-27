@@ -135,6 +135,8 @@ class GridInference(BaseInference):
                 for trial in trace["states"]
             ]
 
+            participant_likelihood = participant.compute_likelihood(trace)
+
             if optimize is True:
                 # sum over actions in trial, then trials
                 trial_mles = np.fromiter(map(sum, participant_likelihood), dtype=float)
