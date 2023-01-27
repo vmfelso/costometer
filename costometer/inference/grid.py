@@ -61,8 +61,8 @@ class GridInference(BaseInference):
         else:
             self.policy_parameters = policy_parameters
 
-        if "alpha" not in self.policy_parameters:
-            self.policy_parameters["alpha"] = Categorical([1], [1])
+        if "kappa" not in self.policy_parameters:
+            self.policy_parameters["kappa"] = Categorical([1], [1])
         if "gamma" not in self.policy_parameters:
             self.policy_parameters["gamma"] = Categorical([1], [1])
 
@@ -79,37 +79,6 @@ class GridInference(BaseInference):
             },
         }
         self.optimization_space = self.get_optimization_space()
-
-        if q_files is not None:
-            self.q_files = q_files
-        elif "q_path" in self.held_constant_policy_kwargs:
-            all_cost_kwargs = [
-                dict(zip(self.cost_parameters.keys(), curr_val))
-                for curr_val in itertools.product(
-                    *[val.vals for val in self.cost_parameters.values()]
-                )
-            ]
-
-            self.q_files = {
-                (get_param_string(cost_kwargs), gamma, alpha): load_q_file(
-                    experiment_setting=self.participant_kwargs["experiment_setting"]
-                    + f"{f'{gamma:.3f}' if gamma != 1 else ''}"
-                    f"{f'_{alpha:.2f}' if alpha != 1 else ''}",
-                    cost_function=self.cost_function
-                    if callable(self.cost_function)
-                    else None,
-                    cost_function_name=self.cost_function_name,
-                    cost_params=cost_kwargs,
-                    path=self.held_constant_policy_kwargs["q_path"],
-                )
-                for cost_kwargs, gamma, alpha in product(
-                    all_cost_kwargs,
-                    self.policy_parameters["gamma"].vals,
-                    self.policy_parameters["alpha"].vals,
-                )
-            }
-        else:
-            self.q_files = None
 
         self.verbose = verbose
 
@@ -133,7 +102,7 @@ class GridInference(BaseInference):
             if key == "q_function_generator":
                 q_function_generator = val
                 policy_kwargs["preference"] = q_function_generator(
-                    cost_kwargs, policy_kwargs["gamma"], policy_kwargs["alpha"]
+                    cost_kwargs, policy_kwargs["gamma"], policy_kwargs["kappa"]
                 )
             else:
                 policy_kwargs[key] = val
@@ -147,7 +116,7 @@ class GridInference(BaseInference):
             policy_kwargs={
                 key: val
                 for key, val in policy_kwargs.items()
-                if key not in ["gamma", "alpha"]
+                if key not in ["gamma", "kappa"]
             },
         )
 
@@ -157,7 +126,6 @@ class GridInference(BaseInference):
                 [
                     adjust_state(
                         state,
-                        policy_kwargs["alpha"],
                         policy_kwargs["gamma"],
                         participant.mouselab_envs[0].mdp_graph.nodes.data("depth"),
                         True,
@@ -166,17 +134,6 @@ class GridInference(BaseInference):
                 ]
                 for trial in trace["states"]
             ]
-            # trace["ground_truth"] = [
-            #     adjust_ground_truth(
-            #         ground_truth,
-            #         policy_kwargs["alpha"],
-            #         policy_kwargs["gamma"],
-            #         participant.mouselab_envs[0].mdp_graph.nodes.data("depth"),
-            #     )
-            #     for ground_truth in trace["ground_truth"]
-            # ]
-
-            participant_likelihood = participant.compute_likelihood(trace)
 
             if optimize is True:
                 # sum over actions in trial, then trials
