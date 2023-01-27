@@ -9,12 +9,11 @@ from mouselab.envs.registry import registry
 from mouselab.mouselab import MouselabEnv
 
 
-def adjust_ground_truth(ground_truth, alpha, gamma, depth_view):
+def adjust_ground_truth(ground_truth, gamma, depth_view):
     return np.asarray(
         [
             round(
-                np.sign(ground_truth[node])
-                * (np.abs(ground_truth[node]) ** alpha)
+                ground_truth[node]
                 * gamma ** (depth - 1),
                 3,
             )
@@ -25,7 +24,10 @@ def adjust_ground_truth(ground_truth, alpha, gamma, depth_view):
     )
 
 
-def adjust_state(state, alpha, gamma, depth_view, include_last_action=False):
+def adjust_state(state, gamma, depth_view, include_last_action=False):
+    if state == '__term_state__':
+        return state
+
     new_state = []
     for node, depth in depth_view:
         if depth == 0:
@@ -33,14 +35,13 @@ def adjust_state(state, alpha, gamma, depth_view, include_last_action=False):
             new_state.append(node)
         elif hasattr(state[node], "sample"):
             vals = [
-                round(np.sign(val) * (np.abs(val) ** alpha) * gamma ** (depth - 1), 3)
+                round(val * gamma ** (depth - 1), 3)
                 for val in state[node].vals
             ]
             new_state.append(Categorical(vals, state[node].probs))
         else:
             val = round(
-                np.sign(state[node])
-                * (np.abs(state[node]) ** alpha)
+                state[node]
                 * gamma ** (depth - 1),
                 3,
             )
