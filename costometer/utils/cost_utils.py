@@ -160,7 +160,7 @@ def get_state_action_values(
     cost_function_name: str = None,
     structure: Dict[Any, Any] = None,
     path: Union[str, bytes, os.PathLike] = None,
-    bmps_path: Union[str, bytes, os.PathLike],
+    bmps_path: Union[str, bytes, os.PathLike] = None,
     env_params: Dict[Any, Any] = None,
     kappa: float = 1,
     gamma: float = 1,
@@ -184,6 +184,9 @@ def get_state_action_values(
 
     if env_params is None:
         env_params = {}
+
+    if bmps_path is None:
+        bmps_path = Path(__file__).parents[1].joinpath("parameters/bmps/")
 
     env = MouselabEnv.new_symmetric_registered(
         experiment_setting,
