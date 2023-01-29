@@ -1,8 +1,9 @@
 """These utilities are related to cost: parameter strings, combinations and q-values"""
 import time
 from itertools import product
-from typing import Any, Dict
+from typing import Any, Dict, Callable, Union
 
+import os
 import blosc
 import dill as pickle
 import numpy as np
