@@ -15,6 +15,7 @@ from costometer.utils.cost_utils import (
     get_param_string,
     load_q_file,
     save_q_values_for_cost,
+    get_state_action_values
 )
 from costometer.utils.latex_utils import *
 from costometer.utils.plotting_utils import *

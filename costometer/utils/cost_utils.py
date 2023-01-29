@@ -145,6 +145,102 @@ def get_matching_q_files(
 
     return files
 
+def get_state_action_values(
+    experiment_setting: str,
+    bmps_file: str,
+    cost_parameters: Dict[str, float],
+    cost_function: Callable,
+    cost_function_name: str = None,
+    structure: Dict[Any, Any] = None,
+    path: Union[str, bytes, os.PathLike] = None,
+    env_params: Dict[Any, Any] = None,
+    kappa: float = 1,
+    gamma: float = 1,
+) -> Callable:
+    """
+    Gets BMPS weights for different cost functions
+
+    :param experiment_setting: which experiment setting (e.g. high increasing)
+    :param cost_parameters: a dictionary of inputs for the cost function
+    :param cost_function: cost function to use
+    :param cost_function_name:
+    :param structure: where nodes are
+    :param path:
+    :param env_params
+    :param kappa
+    :param gamma
+    :return: info dictionary which contains q_dictionary, \
+    function additionally saves this dictionary into data/q_files
+    """
+    W = np.asarray([1, 1, 1])
+
+    if env_params is None:
+        env_params = {}
+
+    env = MouselabEnv.new_symmetric_registered(
+        experiment_setting,
+        cost=cost_function(**cost_parameters),
+        mdp_graph_properties=structure,
+        **env_params,
+    )
+
+    (
+        _,
+        features,
+        _,
+        _,
+    ) = load_feature_file(
+        bmps_file, path=Path(__file__).parents[1].joinpath("parameters/bmps/")
+    )
+
+    env = MetaControllerMouselab(
+        env.tree,
+        env.init,
+        term_belief=False,
+        features=features,
+        seed=91,
+        cost=cost_function(**cost_parameters),
+        mdp_graph_properties=structure,
+        power_utility=kappa,
+        **env_params,
+    )
+
+    env.ground_truth = adjust_ground_truth(env.ground_truth, gamma, env.mdp_graph.nodes.data("depth"))
+    env._state = adjust_state(env._state, gamma, env.mdp_graph.nodes.data("depth"))
+
+    Q = lambda state, action: np.dot(
+        env.action_features(state=state, action=action), W
+    )  # noqa : E731
+
+    info = {"q_dictionary": Q}
+    # saves res dict
+    if path is not None:
+        parameter_string = get_param_string(cost_parameters)
+        if kappa == 1:
+            kappa_string = ""
+        else:
+            kappa_string = f"_{kappa:.2f}"
+
+        if gamma == 1:
+            gamma_string = ""
+        else:
+            gamma_string = f"{gamma:.3f}"
+
+        path.joinpath(
+            f"preferences/{experiment_setting}{gamma_string}{kappa_string}/{cost_function_name}/"
+        ).mkdir(parents=True, exist_ok=True)
+        filename = path.joinpath(
+            f"preferences/{experiment_setting}{gamma_string}{kappa_string}/{cost_function_name}/"
+            f"BMPS_{experiment_setting}{gamma_string}{kappa_string}_{parameter_string}.dat"  # noqa: E501
+        )
+
+        pickled_data = pickle.dumps(info)
+        compressed_pickle = blosc.compress(pickled_data)
+
+        with open(filename, "wb") as f:
+            f.write(compressed_pickle)
+
+    return Q
 
 def load_q_file(
     experiment_setting,
