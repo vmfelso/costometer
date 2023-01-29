@@ -1,16 +1,21 @@
 """These utilities are related to cost: parameter strings, combinations and q-values"""
+import os
 import time
 from itertools import product
-from typing import Any, Dict, Callable, Union
+from pathlib import Path
+from typing import Any, Callable, Dict, Union
 
-import os
 import blosc
 import dill as pickle
 import numpy as np
 from mouselab.cost_functions import linear_depth
 from mouselab.exact_utils import timed_solve_env
+from mouselab.metacontroller.mouselab_env import MetaControllerMouselab
+from mouselab.metacontroller.vanilla_BMPS import load_feature_file
 from mouselab.mouselab import MouselabEnv
 from numpy.random import default_rng
+
+from costometer.utils import adjust_ground_truth, adjust_state
 
 
 def save_q_values_for_cost(
@@ -146,6 +151,7 @@ def get_matching_q_files(
 
     return files
 
+
 def get_state_action_values(
     experiment_setting: str,
     bmps_file: str,
@@ -185,12 +191,7 @@ def get_state_action_values(
         **env_params,
     )
 
-    (
-        _,
-        features,
-        _,
-        _,
-    ) = load_feature_file(
+    (_, features, _, _,) = load_feature_file(
         bmps_file, path=Path(__file__).parents[1].joinpath("parameters/bmps/")
     )
 
@@ -206,7 +207,9 @@ def get_state_action_values(
         **env_params,
     )
 
-    env.ground_truth = adjust_ground_truth(env.ground_truth, gamma, env.mdp_graph.nodes.data("depth"))
+    env.ground_truth = adjust_ground_truth(
+        env.ground_truth, gamma, env.mdp_graph.nodes.data("depth")
+    )
     env._state = adjust_state(env._state, gamma, env.mdp_graph.nodes.data("depth"))
 
     Q = lambda state, action: np.dot(
@@ -228,11 +231,14 @@ def get_state_action_values(
             gamma_string = f"{gamma:.3f}"
 
         path.joinpath(
-            f"preferences/{experiment_setting}{gamma_string}{kappa_string}/{cost_function_name}/"
+            f"preferences/{experiment_setting}{gamma_string}{kappa_string}/"
+            f"{cost_function_name}/"
         ).mkdir(parents=True, exist_ok=True)
         filename = path.joinpath(
-            f"preferences/{experiment_setting}{gamma_string}{kappa_string}/{cost_function_name}/"
-            f"BMPS_{experiment_setting}{gamma_string}{kappa_string}_{parameter_string}.dat"  # noqa: E501
+            f"preferences/{experiment_setting}{gamma_string}{kappa_string}/"
+            f"{cost_function_name}/"
+            f"BMPS_{experiment_setting}{gamma_string}{kappa_string}"
+            f"_{parameter_string}.dat"  # noqa: E501
         )
 
         pickled_data = pickle.dumps(info)
@@ -242,6 +248,7 @@ def get_state_action_values(
             f.write(compressed_pickle)
 
     return Q
+
 
 def load_q_file(
     experiment_setting,
