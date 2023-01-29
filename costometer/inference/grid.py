@@ -102,7 +102,7 @@ class GridInference(BaseInference):
             if key == "q_function_generator":
                 q_function_generator = val
                 policy_kwargs["preference"] = q_function_generator(
-                    cost_kwargs, policy_kwargs["gamma"], policy_kwargs["kappa"]
+                    cost_kwargs, policy_kwargs["kappa"], policy_kwargs["gamma"]
                 )
             else:
                 policy_kwargs[key] = val
