@@ -160,6 +160,7 @@ def get_state_action_values(
     cost_function_name: str = None,
     structure: Dict[Any, Any] = None,
     path: Union[str, bytes, os.PathLike] = None,
+    bmps_path: Union[str, bytes, os.PathLike],
     env_params: Dict[Any, Any] = None,
     kappa: float = 1,
     gamma: float = 1,
@@ -192,7 +193,7 @@ def get_state_action_values(
     )
 
     (_, features, _, _,) = load_feature_file(
-        bmps_file, path=Path(__file__).parents[1].joinpath("parameters/bmps/")
+        bmps_file, path=bmps_path
     )
 
     env = MetaControllerMouselab(
