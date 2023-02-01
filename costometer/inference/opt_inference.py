@@ -214,7 +214,7 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
                 additional_params[key] = val
 
         policy_kwargs["preference"] = q_function_generator(
-            cost_kwargs, policy_kwargs["gamma"], policy_kwargs["alpha"]
+            cost_kwargs, policy_kwargs["kappa"], policy_kwargs["gamma"]
         )
 
         participant = self.participant_class(
@@ -225,7 +225,7 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
             policy_kwargs={
                 key: val
                 for key, val in policy_kwargs.items()
-                if key not in ["gamma", "alpha"]
+                if key not in ["gamma", "kappa"]
             },
         )
 
@@ -235,7 +235,6 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
                 [
                     adjust_state(
                         state,
-                        policy_kwargs["alpha"],
                         policy_kwargs["gamma"],
                         participant.mouselab_envs[0].mdp_graph.nodes.data("depth"),
                         True,
@@ -247,7 +246,6 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
             # trace["ground_truth"] = [
             #     adjust_ground_truth(
             #         ground_truth,
-            #         policy_kwargs["alpha"],
             #         policy_kwargs["gamma"],
             #         participant.mouselab_envs[0].mdp_graph.nodes.data("depth"),
             #     )
