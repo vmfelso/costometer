@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, List, Type
 
 import numpy as np
 import pandas as pd
-from hyperopt import STATUS_OK, Trials, fmin, hp, tpe  # noqa
+from hyperopt import STATUS_FAIL, STATUS_OK, Trials, fmin, hp, tpe  # noqa
 from mouselab.distributions import Categorical
 from scipy import stats  # noqa
 
@@ -255,12 +255,17 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
             # participant.agent.env
             participant_likelihood = participant.compute_likelihood(trace)
 
-            prior_prob = np.sum(
-                [
-                    prior_function(config[param])
-                    for param, prior_function in self.prior_probability_dict.items()
-                ]
-            )
+            try:
+                prior_prob = np.sum(
+                    [
+                        prior_function(config[param])
+                        for param, prior_function in self.prior_probability_dict.items()
+                    ]
+                )
+            except KeyError:
+                # sometimes hyperopt seems to suggest values not in hp.choice
+                return {"loss": np.float("inf"), "status": STATUS_FAIL}
+
             if optimize is True:
                 # sum over actions in trial, then trials
                 trial_mles = np.fromiter(map(sum, participant_likelihood), dtype=float)
