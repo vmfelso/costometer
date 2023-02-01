@@ -264,7 +264,7 @@ class HyperoptOptimizerInference(BaseOptimizerInference):
                 )
             except KeyError:
                 # sometimes hyperopt seems to suggest values not in hp.choice
-                return {"loss": np.float("inf"), "status": STATUS_FAIL}
+                return {"loss": float("inf"), "status": STATUS_FAIL}
 
             if optimize is True:
                 # sum over actions in trial, then trials
