@@ -9,6 +9,8 @@ def set_font_sizes(SMALL_SIZE=16, MEDIUM_SIZE=20, BIGGER_SIZE=30):
     Good font sizes for a poster: 24, 36, 48
     """
 
+    plt.rcParams['text.usetex'] = True
+
     plt.rc("font", size=SMALL_SIZE)  # controls default text sizes
     plt.rc("axes", labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
     plt.rc("xtick", labelsize=SMALL_SIZE)  # fontsize of the tick labels
