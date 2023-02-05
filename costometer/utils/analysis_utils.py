@@ -229,22 +229,21 @@ class AnalysisObject:
         if not hasattr(self, "palette_name"):
             self.palette_name = experiment_name
 
+        dfs = {}
+        for session in self.sessions:
+            matching_files = self.irl_path.glob(f"data/processed/{session}/*.csv")
+            for matching_file in matching_files:
+                curr_df = pd.read_csv(matching_file, index_col=0)
+                curr_df["session"] = session
+
+                if matching_file.stem not in dfs:
+                    dfs[matching_file.stem] = [curr_df]
+                else:
+                    dfs[matching_file.stem].append(curr_df)
+
+        self.dfs = {file_type: pd.concat(df_list) for file_type, df_list in dfs.items()}
+
         if not self.simulated:
-            dfs = {}
-            for session in self.sessions:
-                matching_files = self.irl_path.glob(f"data/processed/{session}/*.csv")
-                for matching_file in matching_files:
-                    curr_df = pd.read_csv(matching_file, index_col=0)
-                    curr_df["session"] = session
-
-                    if matching_file.stem not in dfs:
-                        dfs[matching_file.stem] = [curr_df]
-                    else:
-                        dfs[matching_file.stem].append(curr_df)
-
-            self.dfs = {
-                file_type: pd.concat(df_list) for file_type, df_list in dfs.items()
-            }
             self.load_session_details()
         else:
             # create 'num_clicks'
@@ -258,7 +257,7 @@ class AnalysisObject:
                 col for col in list(self.dfs["mouselab-mdp"]) if "sim_" in col
             ]
             self.dfs["mouselab-mdp"] = self.dfs["mouselab-mdp"][
-                simulated_cols + ["pid", "block", "num_clicks"]
+                simulated_cols + ["pid", "block", "num_clicks", "session"]
             ].copy(deep=True)
 
             self.session_details = {
@@ -285,15 +284,19 @@ class AnalysisObject:
             for session_details in self.session_details.values()
         ][0]
 
+        yaml_path = self.irl_path.joinpath(
+            f"data/inputs/yamls/experiment_settings/{self.experiment_setting}.yaml"
+        )
+        with open(yaml_path, "r") as stream:
+            self.experiment_details = yaml.safe_load(stream)
+
         self.optimization_data = self.load_optimization_data()
 
         if not self.irl_path.joinpath(
             f"analysis/{self.experiment_subdirectory}/data/"
             f"{self.experiment_name}_models_palette.pickle"
         ).is_file():
-            static_palette = generate_model_palette(
-                self.optimization_data["Model Name"].unique()
-            )
+            static_palette = generate_model_palette(self.model_name_mapping.values())
             self.irl_path.joinpath(
                 f"analysis/{self.experiment_subdirectory}/data/"
             ).mkdir(parents=True, exist_ok=True)
@@ -339,7 +342,6 @@ class AnalysisObject:
             .values
         ]
         for session, mle_and_map_file in mle_and_map_files:
-            # try:
             with open(
                 mle_and_map_file,
                 "rb",
@@ -480,14 +482,32 @@ class AnalysisObject:
         processed_df: pd.DataFrame,
         variables_of_interest: List[str] = None,
     ) -> pd.DataFrame:
-        return optimization_df.merge(
-            processed_df[["pid", *variables_of_interest]],
-            left_on=[
-                "trace_pid",
-            ],
-            right_on=["pid"],
-            how="left",
-        )
+        if all(var in processed_df for var in variables_of_interest):
+            merged_df = optimization_df.merge(
+                processed_df[["pid", *variables_of_interest]],
+                left_on=[
+                    "trace_pid",
+                ],
+                right_on=["pid"],
+                how="left",
+            )
+            # delete pid in case we want to merge additional dataframes
+            # in the future
+            del merged_df["pid"]
+            return merged_df
+        elif all(var in optimization_df for var in variables_of_interest):
+            merged_df = processed_df.merge(
+                optimization_df[["trace_pid", *variables_of_interest]],
+                left_on=[
+                    "pid",
+                ],
+                right_on=["trace_pid"],
+                how="left",
+            )
+            # delete pid in case we want to merge additional dataframes
+            # in the future
+            del merged_df["trace_pid"]
+            return merged_df
 
     def get_trial_by_trial_likelihoods(
         self,
@@ -515,7 +535,36 @@ class AnalysisObject:
             with open(trial_by_trial_file, "wb") as f:
                 pickle.dump(all_trial_by_trial, f)
 
-        return all_trial_by_trial
+        avg_trial = []
+        for excluded_parameters in self.trial_by_trial_models:
+            participant_lik_trial_dicts = all_trial_by_trial[excluded_parameters]
+            if excluded_parameters == "":
+                model_name = self.model_name_mapping[()]
+            else:
+                model_name = self.model_name_mapping[
+                    tuple(excluded_parameters.split(","))
+                ]
+
+            avg_trial.extend(
+                [
+                    [
+                        pid,
+                        sum([np.exp(action_ll) for action_ll in trial_ll])
+                        / len(trial_ll),
+                        model_name,
+                        excluded_parameters == self.excluded_parameters,
+                        trial_num,
+                    ]
+                    for pid, all_ll in participant_lik_trial_dicts.items()
+                    for trial_num, trial_ll in enumerate(all_ll)
+                ]
+            )
+
+        trial_by_trial_df = pd.DataFrame(
+            avg_trial, columns=["pid", "avg", "Model Name", "best_model", "i_episode"]
+        )
+
+        return trial_by_trial_df
 
     def compute_trial_by_trial_likelihoods(
         self, excluded_parameters: str = None
@@ -540,16 +589,10 @@ class AnalysisObject:
 
         experiment_setting = self.experiment_setting
 
-        yaml_path = self.irl_path.joinpath(
-            f"data/inputs/yamls/experiment_settings/{self.experiment_setting}.yaml"
-        )
-        with open(yaml_path, "r") as stream:
-            experiment_details = yaml.safe_load(stream)
-
         with open(
             self.irl_path.joinpath(
                 f"data/inputs/exp_inputs/structure/"
-                f"{experiment_details['structure']}.json"
+                f"{self.experiment_details['structure']}.json"
             ),
             "rb",
         ) as f:
@@ -655,10 +698,36 @@ class AnalysisObject:
 
         return trial_by_trial
 
+    def load_hdi_ranges(self, excluded_parameters: str = None):
+        if excluded_parameters is None:
+            excluded_parameters = self.excluded_parameters
+
+        if excluded_parameters != "":
+            file_end = "_" + excluded_parameters
+        else:
+            file_end = ""
+
+        hdi_ranges = {}
+        for session, pid in (
+            self.dfs["mouselab-mdp"][["session", "pid"]].drop_duplicates().values
+        ):
+            hdi_file = self.irl_path.joinpath(
+                f"cluster/data/marginal_hdi/{self.cost_function}/{session}/"
+                f"{self.block}_{self.prior}_hdi_{pid}{file_end}.pickle"
+            )
+            with open(
+                hdi_file,
+                "rb",
+            ) as f:
+                hdi_ranges[pid] = pickle.load(f)
+
+        return hdi_ranges
+
     def query_optimization_data(
         self,
         prior: str = None,
         include_null: bool = None,
+        excluded_parameters: str = None,
     ) -> pd.DataFrame:
         if prior is None:
             prior = self.prior
@@ -681,4 +750,15 @@ class AnalysisObject:
                 ]
             )
 
-        return subset
+        if excluded_parameters is None:
+            return subset
+        elif excluded_parameters == "":
+            return subset[
+                subset["model"].apply(lambda model: set(model) == set())
+            ].copy(deep=True)
+        else:
+            return subset[
+                subset["model"].apply(
+                    lambda model: set(model) == set(excluded_parameters.split(","))
+                )
+            ].copy(deep=True)
