@@ -691,9 +691,9 @@ class AnalysisObject:
                 )
                 assert (
                     sum_trial_by_trial
-                    - optimization_data[optimization_data["pid"] == pid]["mle"].values[
-                        0
-                    ]
+                    - optimization_data[optimization_data["trace_pid"] == pid][
+                        "mle"
+                    ].values[0]
                 ) < 1e-3
 
         return trial_by_trial
