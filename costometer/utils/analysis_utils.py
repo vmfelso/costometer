@@ -572,21 +572,9 @@ class AnalysisObject:
         if excluded_parameters is None:
             excluded_parameters = self.excluded_parameters
 
-        optimization_data = self.query_optimization_data()
-        optimization_data = optimization_data[
-            optimization_data["applied_policy"] == "SoftmaxPolicy"
-        ]
-        if excluded_parameters == "":
-            optimization_data = optimization_data[
-                optimization_data["model"].apply(lambda model: set(model) == set())
-            ].copy(deep=True)
-        else:
-            optimization_data = optimization_data[
-                optimization_data["model"].apply(
-                    lambda model: set(model) == set(excluded_parameters.split(","))
-                )
-            ].copy(deep=True)
-
+        optimization_data = self.query_optimization_data(
+            excluded_parameters=excluded_parameters
+        )
         experiment_setting = self.experiment_setting
 
         with open(
