@@ -296,7 +296,7 @@ class AnalysisObject:
             f"analysis/{self.experiment_subdirectory}/data/"
             f"{self.experiment_name}_models_palette.pickle"
         ).is_file():
-            static_palette = generate_model_palette(self.model_name_mapping.values())
+            static_palette = generate_model_palette(list(self.model_name_mapping.values())+["Null"])
             self.irl_path.joinpath(
                 f"analysis/{self.experiment_subdirectory}/data/"
             ).mkdir(parents=True, exist_ok=True)
