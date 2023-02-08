@@ -334,7 +334,9 @@ class AnalysisObject:
                 self.irl_path.joinpath(
                     f"data/processed/{session}/{self.cost_function}"
                     f"/mle_and_map"
-                    f"{'_' + self.block if self.block != 'test' else ''}_{pid}.pickle"
+                    f"{'_' + self.block if self.block != 'test' else ''}"
+                    f"{'_positive' if self.positive else ''}"
+                    f"_{pid}.pickle"
                 ),
             )
             for session, pid in self.dfs["mouselab-mdp"][["session", "pid"]]
