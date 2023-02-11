@@ -252,14 +252,6 @@ class AnalysisObject:
             # simulated data's block is always test
             self.dfs["mouselab-mdp"]["block"] = "test"
 
-            # only keep relevant columns
-            simulated_cols = [
-                col for col in list(self.dfs["mouselab-mdp"]) if "sim_" in col
-            ]
-            self.dfs["mouselab-mdp"] = self.dfs["mouselab-mdp"][
-                simulated_cols + ["pid", "block", "num_clicks", "session"]
-            ].copy(deep=True)
-
             self.session_details = {
                 session: {
                     "experiment_setting": session.split("/")[1],
