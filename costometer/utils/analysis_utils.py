@@ -296,7 +296,9 @@ class AnalysisObject:
             f"analysis/{self.experiment_subdirectory}/data/"
             f"{self.experiment_name}_models_palette.pickle"
         ).is_file():
-            static_palette = generate_model_palette(list(self.model_name_mapping.values())+["Null"])
+            static_palette = generate_model_palette(
+                list(self.model_name_mapping.values()) + ["Null"]
+            )
             self.irl_path.joinpath(
                 f"analysis/{self.experiment_subdirectory}/data/"
             ).mkdir(parents=True, exist_ok=True)
@@ -335,7 +337,6 @@ class AnalysisObject:
                     f"data/processed/{session}/{self.cost_function}"
                     f"/mle_and_map"
                     f"{'_' + self.block if self.block != 'test' else ''}"
-                    f"{'_positive' if self.positive else ''}"
                     f"_{pid}.pickle"
                 ),
             )
@@ -366,67 +367,76 @@ class AnalysisObject:
             )
             for prior, prior_dict in data["SoftmaxPolicy"].items():
                 all_params = max(prior_dict, key=len)
+
+                if self.included_parameters == "":
+                    included_parameters = set()
+                else:
+                    included_parameters = set(self.included_parameters.split(","))
+
                 for model, model_df in prior_dict.items():
-                    must_contain = set(all_params) - set(
-                        self.cost_details["constant_values"]
-                    )
-                    # in some cases, if we used a larger base cost model we will have
-                    # an entry with param X held constant and not
-                    # (when it always was for this cost function)
-                    if must_contain.issubset(set(model)):
-                        # model is held constant parameters
-                        varied_parameters = set(all_params) - set(model)
-                        number_parameters = len(varied_parameters)
-                        cost_params_in_model = varied_parameters.intersection(
-                            set(self.cost_details["cost_parameter_args"])
+                    if set(model).intersection(included_parameters) == set():
+                        must_contain = set(all_params) - set(
+                            self.cost_details["constant_values"]
                         )
-                        additional_params_in_model = varied_parameters.difference(
-                            set(self.cost_details["cost_parameter_args"])
-                        )
-
-                        if len(cost_params_in_model) > 0:
-                            model_name = (
-                                "$"
-                                + ", ".join(
-                                    [
-                                        self.cost_details["latex_mapping"][param]
-                                        for param in sorted(cost_params_in_model)
-                                    ]
-                                )
-                                + "$"
+                        # in some cases, if we used a larger base cost model we will
+                        # have an entry with param X held constant and not
+                        # (when it always was for this cost function)
+                        if must_contain.issubset(set(model)):
+                            # model is held constant parameters
+                            varied_parameters = set(all_params) - set(model)
+                            number_parameters = len(varied_parameters)
+                            cost_params_in_model = varied_parameters.intersection(
+                                set(self.cost_details["cost_parameter_args"])
                             )
-                        else:
-                            model_name = "Null (Given Costs)"
-
-                        if len(additional_params_in_model) > 0:
-                            model_name = (
-                                model_name
-                                + " with $"
-                                + ", ".join(
-                                    [
-                                        self.cost_details["latex_mapping"][param]
-                                        for param in sorted(additional_params_in_model)
-                                    ]
-                                )
-                                + "$"
+                            additional_params_in_model = varied_parameters.difference(
+                                set(self.cost_details["cost_parameter_args"])
                             )
 
-                        self.model_name_mapping[
-                            tuple(param for param in sorted(model))
-                        ] = model_name
-                        full_dfs.extend(
-                            [
-                                {
-                                    **softmax_record,
-                                    "prior": prior,
-                                    "model": model,
-                                    "Model Name": model_name,
-                                    "session": session,
-                                    "Number Parameters": number_parameters,
-                                }
-                                for softmax_record in model_df.to_dict("records")
-                            ]
-                        )
+                            if len(cost_params_in_model) > 0:
+                                model_name = (
+                                    "$"
+                                    + ", ".join(
+                                        [
+                                            self.cost_details["latex_mapping"][param]
+                                            for param in sorted(cost_params_in_model)
+                                        ]
+                                    )
+                                    + "$"
+                                )
+                            else:
+                                model_name = "Null (Given Costs)"
+
+                            if len(additional_params_in_model) > 0:
+                                model_name = (
+                                    model_name
+                                    + " with $"
+                                    + ", ".join(
+                                        [
+                                            self.cost_details["latex_mapping"][param]
+                                            for param in sorted(
+                                                additional_params_in_model
+                                            )
+                                        ]
+                                    )
+                                    + "$"
+                                )
+
+                            self.model_name_mapping[
+                                tuple(param for param in sorted(model))
+                            ] = model_name
+                            full_dfs.extend(
+                                [
+                                    {
+                                        **softmax_record,
+                                        "prior": prior,
+                                        "model": model,
+                                        "Model Name": model_name,
+                                        "session": session,
+                                        "Number Parameters": number_parameters,
+                                    }
+                                    for softmax_record in model_df.to_dict("records")
+                                ]
+                            )
 
         full_df = pd.DataFrame(full_dfs)
         # delete old index column, if needed
