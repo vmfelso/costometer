@@ -41,6 +41,14 @@ def get_wilcoxon_text(comparison):
     )
 
 
+def get_friedman_test_text(comparison):
+    return (
+        f"$\\chi^2({comparison.ddof1[0]}) = "
+        f"{comparison.Q[0]:.3f}, "
+        f"{get_pval_text(comparison['p-unc'].values[0])}$"
+    )
+
+
 def get_kruskal_wallis_text(comparison):
     return (
         f"Kruskal-Wallis $H({comparison['ddof1'].values[0]})"
