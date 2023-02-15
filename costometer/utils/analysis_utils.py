@@ -147,7 +147,6 @@ def add_cost_priors_to_temp_priors(
         temp_prior = get_prior(
             rv=eval(prior_inputs["rv"]),
             possible_vals=np.log10(prior_inputs["possible_temps"]) + 1,
-            inverse=prior_inputs["inverse"],
         )
         priors["temp"] = dict(zip(prior_inputs["possible_temps"], temp_prior.probs))
 
@@ -161,7 +160,6 @@ def add_cost_priors_to_temp_priors(
             additional_prior = get_prior(
                 rv=eval(prior_inputs["rv"]),
                 possible_vals=[1 - possible_val for possible_val in unique_args],
-                inverse=prior_inputs["inverse"],
             )
             priors[additional_param] = dict(zip(unique_args, additional_prior.probs))
 
