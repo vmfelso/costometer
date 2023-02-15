@@ -2,7 +2,7 @@ from costometer.utils.analysis_utils import (
     AnalysisObject,
     add_cost_priors_to_temp_priors,
     extract_mles_and_maps,
-    get_temp_prior,
+    get_prior,
 )
 from costometer.utils.bias_utils import (
     add_click_count_columns_to_simulated,
@@ -13,9 +13,9 @@ from costometer.utils.cost_utils import (
     get_cost_params_from_string,
     get_matching_q_files,
     get_param_string,
+    get_state_action_values,
     load_q_file,
     save_q_values_for_cost,
-    get_state_action_values
 )
 from costometer.utils.latex_utils import *
 from costometer.utils.plotting_utils import *
