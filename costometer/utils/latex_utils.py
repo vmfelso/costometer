@@ -35,7 +35,7 @@ def get_mann_whitney_text(comparison):
 def get_wilcoxon_text(comparison):
     return (
         f"$W = {comparison['W-val'].values[0]:.2f}, "
-        f"RBC = {comparison['RBC'].values[0]:.2f},"
+        f"\\text{{RBC}} = {comparison['RBC'].values[0]:.2f},"
         f" {get_pval_text(comparison['p-val'].values[0])}$, "
         f"{comparison['alternative'].values[0]}"
     )
