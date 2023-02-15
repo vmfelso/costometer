@@ -106,6 +106,8 @@ def get_best_parameters(
                     pid_best_param_rows.loc[
                         pid_best_param_rows["num_constant"].idxmax()
                     ]
+                    .to_frame()
+                    .T
                     for pid_best_param_rows in best_param_rows
                 ]
             )
