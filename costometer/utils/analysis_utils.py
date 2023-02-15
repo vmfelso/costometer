@@ -578,7 +578,7 @@ class AnalysisObject:
                 model_name = self.model_name_mapping[()]
             else:
                 model_name = self.model_name_mapping[
-                    tuple(excluded_parameters.split(","))
+                    tuple(sorted(excluded_parameters.split(",")))
                 ]
 
             avg_trial.extend(
