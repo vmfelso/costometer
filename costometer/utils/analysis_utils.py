@@ -144,17 +144,32 @@ def add_cost_priors_to_temp_priors(
     for prior, prior_inputs in temp_prior_details.items():
         priors = {}
 
-        temp_prior = get_temp_prior(
+        temp_prior = get_prior(
             rv=eval(prior_inputs["rv"]),
-            possible_vals=prior_inputs["possible_temps"],
+            possible_vals=np.log10(prior_inputs["possible_temps"]) + 1,
             inverse=prior_inputs["inverse"],
         )
-        priors["temp"] = dict(zip(temp_prior.vals, temp_prior.probs))
+        priors["temp"] = dict(zip(prior_inputs["possible_temps"], temp_prior.probs))
 
-        non_temp_params = set(
-            list(cost_details["constant_values"]) + additional_params
-        ) - set(["temp"])
-        for cost_parameter_arg in non_temp_params:
+        for additional_param in additional_params:
+            numeric_values = softmax_df[additional_param][
+                softmax_df[additional_param].apply(
+                    lambda entry: not isinstance(entry, str)
+                )
+            ]
+            unique_args = np.unique(numeric_values)
+            additional_prior = get_prior(
+                rv=eval(prior_inputs["rv"]),
+                possible_vals=[1 - possible_val for possible_val in unique_args],
+                inverse=prior_inputs["inverse"],
+            )
+            priors[additional_param] = dict(zip(unique_args, additional_prior.probs))
+
+        # cost params, uniform
+        uniform_params = set(list(cost_details["constant_values"])) - set(
+            ["temp"] + additional_params
+        )
+        for cost_parameter_arg in uniform_params:
             numeric_values = softmax_df[cost_parameter_arg][
                 softmax_df[cost_parameter_arg].apply(
                     lambda entry: not isinstance(entry, str)
@@ -204,24 +219,16 @@ def extract_mles_and_maps(
     return best_parameter_values
 
 
-def get_temp_prior(
-    rv: rv_continuous, possible_vals: List[float], inverse: bool = True
-) -> Categorical:
+def get_prior(rv: rv_continuous, possible_vals: List[float]) -> Categorical:
     """
 
     :param rv:
     :param possible_vals:
-    :param inverse:
     :return:
     """
-    if inverse:
-        rv_vals = [1 / val for val in possible_vals]
-    else:
-        rv_vals = possible_vals
-
-    normalizing_factor = sum([rv.pdf(val) for val in rv_vals])
+    normalizing_factor = sum([rv.pdf(val) for val in possible_vals])
     categorical_dist = Categorical(
-        possible_vals, [rv.pdf(val) / normalizing_factor for val in rv_vals]
+        possible_vals, [rv.pdf(val) / normalizing_factor for val in possible_vals]
     )
     return categorical_dist
 
