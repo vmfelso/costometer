@@ -101,6 +101,15 @@ def get_regression_text(regression_res):
     )
 
 
+def get_parameter_coefficient(regression_res, param):
+    return (
+        f"t({regression_res.df_resid:.0f}) = "
+        f"{regression_res.tvalues[param]:.2f}, "
+        f"{get_pval_text(regression_res.pvalues[param])}$,"
+        f"\\beta = {regression_res.params[param]:.2f}"
+    )
+
+
 def get_anova_text(anova_object):
     anova_text = ""
     for row_idx, row in anova_object.iterrows():
