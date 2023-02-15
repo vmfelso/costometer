@@ -41,6 +41,16 @@ def get_best_parameters(
     # reset index's df for the indexing by best row
     df = df.reset_index()
 
+    df["num_constant"] = df.apply(
+        lambda row: sum(
+            [
+                row[param] == val
+                for param, val in cost_details["constant_values"].items()
+            ]
+        ),
+        axis=1,
+    )
+
     for prior_type, prior_dict in priors.items():
         # save best parameters for each prior
         best_parameter_values[prior_type] = {}
@@ -80,11 +90,26 @@ def get_best_parameters(
             # some might be duplicated (e.g. pid 0 with sim cost 1 vs 2)
             sim_cols = [col for col in list(curr_data) if "sim_" in col]
 
-            best_param_rows = curr_data.loc[  #
-                curr_data.groupby(["trace_pid"] + sim_cols).idxmax(numeric_only=True)[
-                    f"map_{prior_type}"
-                ]
+            max_values = curr_data.groupby(["trace_pid"] + sim_cols).max(
+                numeric_only=True
+            )[f"map_{prior_type}"]
+
+            # rows which tie for max MAP
+            best_param_rows = [
+                df[df[f"map_{prior_type}"] == max_values[key]]
+                for key, df in curr_data.groupby(["trace_pid"] + sim_cols)
             ]
+
+            # favor rows with more constant values
+            best_param_rows = pd.concat(
+                [
+                    pid_best_param_rows.loc[
+                        pid_best_param_rows["num_constant"].idxmax()
+                    ]
+                    for pid_best_param_rows in best_param_rows
+                ]
+            )
+
             assert np.all(
                 [
                     counter == 1
