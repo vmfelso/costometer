@@ -13,6 +13,17 @@ def get_pval_text(p_val):
     return ptext
 
 
+def get_pval_string(p_val):
+    if p_val > 0.05:
+        return ""
+    elif p_val < 0.001:
+        return "^{***}"
+    elif p_val < 0.01:
+        return "^{**}"
+    else:
+        return "^{*}"
+
+
 def get_mann_whitney_text(comparison):
     return (
         f"Mann-Whitney $U={comparison['U-val'].values[0]:.2f}, "
