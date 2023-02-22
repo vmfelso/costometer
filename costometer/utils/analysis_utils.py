@@ -488,7 +488,7 @@ class AnalysisObject:
 
         full_df["bic"] = full_df.apply(
             lambda row: bic(
-                llf=row[f"map_{self.prior}"],
+                llf=row["mle"],
                 nobs=row["num_clicks"],
                 df_modelwc=row["Number Parameters"],
             ),
