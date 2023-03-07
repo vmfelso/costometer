@@ -93,19 +93,25 @@ def get_ttest_text(comparison):
     )
 
 
-def get_regression_text(regression_res):
+def get_regression_text(regression_res, pval=None):
+    if pval is None:
+        pval = regression_res.f_pvalue
+
     return (
         f"adj. $R^2={regression_res.rsquared_adj:.2f}, "
         f"F({regression_res.df_model:.0f}, {regression_res.df_resid:.0f}) = "
-        f"{regression_res.fvalue:.2f}, {get_pval_text(regression_res.f_pvalue)}$"
+        f"{regression_res.fvalue:.2f}, {get_pval_text(pval)}$"
     )
 
 
-def get_parameter_coefficient(regression_res, param):
+def get_parameter_coefficient(regression_res, param, pval=None):
+    if pval is None:
+        pval = regression_res.pvalues[param]
+
     return (
         f"t({regression_res.df_resid:.0f}) = "
         f"{regression_res.tvalues[param]:.2f}, "
-        f"{get_pval_text(regression_res.pvalues[param])}$,"
+        f"{get_pval_text(pval)}$,"
         f"\\beta = {regression_res.params[param]:.2f}"
     )
 
