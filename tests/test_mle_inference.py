@@ -53,7 +53,6 @@ inference_cost_parameters = {
 }
 
 
-# similar to Kubala test cases
 # this time we want two: one for small_increasing and one for small_decreasing
 # in each, all three traces are evaluated
 @pytest.fixture(params=mle_test_data)
@@ -62,7 +61,7 @@ def mle_test_cases(request, inference_cost_parameters=inference_cost_parameters)
     register(
         name=request.param["env"]["setting"],
         branching=[2, 2],
-        reward_inputs=["depth"],
+        reward_inputs="depth",
         reward_dictionary=request.param["env"]["reward_dictionary"],
     )
 

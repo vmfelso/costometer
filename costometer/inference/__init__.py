@@ -1,2 +1,2 @@
 from costometer.inference.grid import GridInference
-from costometer.inference.ray_inference import GridRayInference
+from costometer.inference.opt_inference import HyperoptOptimizerInference

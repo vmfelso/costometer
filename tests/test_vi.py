@@ -11,7 +11,7 @@ vi_test_data = [
     {
         "name": "medium_magellanic_cloud",
         "branching": [1, 2, 1],
-        "reward_inputs": ["depth"],
+        "reward_inputs": "depth",
         "reward_dictionary": {
             1: Categorical([-500]),
             2: Categorical([-60, 60]),
@@ -21,13 +21,13 @@ vi_test_data = [
     {
         "name": "small_increasing",
         "branching": [2, 2],
-        "reward_inputs": ["depth"],
+        "reward_inputs": "depth",
         "reward_dictionary": high_increasing_reward,
     },
     {
         "name": "small_decreasing",
         "branching": [2, 2],
-        "reward_inputs": ["depth"],
+        "reward_inputs": "depth",
         "reward_dictionary": high_decreasing_reward,
     },
 ]

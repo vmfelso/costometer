@@ -13,6 +13,17 @@ def get_pval_text(p_val):
     return ptext
 
 
+def get_pval_string(p_val):
+    if p_val > 0.05:
+        return ""
+    elif p_val < 0.001:
+        return "^{***}"
+    elif p_val < 0.01:
+        return "^{**}"
+    else:
+        return "^{*}"
+
+
 def get_mann_whitney_text(comparison):
     return (
         f"Mann-Whitney $U={comparison['U-val'].values[0]:.2f}, "
@@ -24,9 +35,17 @@ def get_mann_whitney_text(comparison):
 def get_wilcoxon_text(comparison):
     return (
         f"$W = {comparison['W-val'].values[0]:.2f}, "
-        f"RBC = {comparison['RBC'].values[0]:.2f},"
+        f"\\text{{RBC}} = {comparison['RBC'].values[0]:.2f},"
         f" {get_pval_text(comparison['p-val'].values[0])}$, "
         f"{comparison['alternative'].values[0]}"
+    )
+
+
+def get_friedman_test_text(comparison):
+    return (
+        f"$\\chi^2({comparison.ddof1[0]}) = "
+        f"{comparison.Q[0]:.3f}, "
+        f"{get_pval_text(comparison['p-unc'].values[0])}$"
     )
 
 
@@ -39,6 +58,9 @@ def get_kruskal_wallis_text(comparison):
 
 
 def get_correlation_text(correlation):
+    if np.any(np.isnan(correlation["CI95%"][0])):
+        return "Potentially no variance of one parameter..."
+
     if "pearson" in correlation.index.values:
         return (
             f"$r({correlation['n'].values[0]}) = {correlation['r'].values[0]:.2f}, "
@@ -71,11 +93,26 @@ def get_ttest_text(comparison):
     )
 
 
-def get_regression_text(regression_res):
+def get_regression_text(regression_res, pval=None):
+    if pval is None:
+        pval = regression_res.f_pvalue
+
     return (
         f"adj. $R^2={regression_res.rsquared_adj:.2f}, "
         f"F({regression_res.df_model:.0f}, {regression_res.df_resid:.0f}) = "
-        f"{regression_res.fvalue:.2f}, {get_pval_text(regression_res.f_pvalue)}$"
+        f"{regression_res.fvalue:.2f}, {get_pval_text(pval)}$"
+    )
+
+
+def get_parameter_coefficient(regression_res, param, pval=None):
+    if pval is None:
+        pval = regression_res.pvalues[param]
+
+    return (
+        f"t({regression_res.df_resid:.0f}) = "
+        f"{regression_res.tvalues[param]:.2f}, "
+        f"{get_pval_text(pval)}$,"
+        f"\\beta = {regression_res.params[param]:.2f}"
     )
 
 

@@ -1,22 +1,20 @@
-"""Optimization with ray[tune]."""
-import itertools
-import logging
+"""Optimization with hyperopt."""
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Type
 
 import numpy as np
 import pandas as pd
-import ray
+from hyperopt import STATUS_FAIL, STATUS_OK, Trials, fmin, hp, tpe  # noqa
 from mouselab.distributions import Categorical
-from ray import tune
+from scipy import stats  # noqa
 
 from costometer.agents.vanilla import Participant
 from costometer.inference.base import BaseInference
-from costometer.utils import get_param_string, load_q_file, traces_to_df
+from costometer.utils import adjust_state, traces_to_df
 
 
-class BaseRayInference(BaseInference):
-    """Base Ray optimization class"""
+class BaseOptimizerInference(BaseInference):
+    """Base Optimizer optimization class"""
 
     def __init__(
         self,
@@ -25,9 +23,9 @@ class BaseRayInference(BaseInference):
         participant_kwargs: Dict[str, Any],
         cost_function: Callable,
         cost_parameters: Dict[str, Categorical],
+        cost_function_name: str = None,
         held_constant_policy_kwargs: Dict[str, Any] = None,
-        policy_parameters: Dict[str, any] = None,
-        local_mode: bool = False,
+        policy_parameters: Dict[str, Any] = None,
         optimization_settings: Dict[str, Any] = None,
     ):
         """
@@ -37,16 +35,21 @@ class BaseRayInference(BaseInference):
         :param participant_kwargs:
         :param cost_function:
         :param cost_parameters:
+        :param cost_function_name:
         :param held_constant_policy_kwargs:
         :param policy_parameters:
-        :param local_mode:
         """
         super().__init__(traces)
 
         self.participant_class = participant_class
         self.participant_kwargs = participant_kwargs
         self.cost_function = cost_function
-        self.cost_parameters = cost_parameters
+        self.cost_function_name = cost_function_name
+
+        if cost_parameters is None:
+            self.cost_parameters = {}
+        else:
+            self.cost_parameters = cost_parameters
 
         # policy parameters vary between agents
         if held_constant_policy_kwargs is None:
@@ -57,8 +60,6 @@ class BaseRayInference(BaseInference):
             self.policy_parameters = {}
         else:
             self.policy_parameters = policy_parameters
-
-        self.local_mode = local_mode
 
         if optimization_settings is None:
             self.optimization_settings = {}
@@ -123,7 +124,7 @@ class BaseRayInference(BaseInference):
         return results_df.join(config_columns)
 
 
-class GridRayInference(BaseRayInference):
+class HyperoptOptimizerInference(BaseOptimizerInference):
     """"Optimization over grid"""
 
     def __init__(
@@ -131,11 +132,11 @@ class GridRayInference(BaseRayInference):
         traces: List[Dict[str, List]],
         participant_class: Type[Participant],
         participant_kwargs: Dict[str, Any],
-        cost_function: Callable,
-        cost_parameters: Dict[str, Categorical],
+        cost_function: Callable = None,
+        cost_parameters: Dict[str, Categorical] = None,
         held_constant_policy_kwargs: Dict[str, Categorical] = None,
+        held_constant_cost_kwargs: Dict[str, Categorical] = None,
         policy_parameters: Dict[str, Categorical] = None,
-        local_mode: bool = False,
         optimization_settings: Dict[str, Any] = None,
     ):
         """
@@ -146,51 +147,44 @@ class GridRayInference(BaseRayInference):
         :param cost_function:
         :param cost_parameters:
         :param held_constant_policy_kwargs:
+        :parm held_constant_cost_kwargs:
         :param policy_parameters:
-        :param local_mode:
         :param optimization_settings:
         """
         super().__init__(
-            traces,
-            participant_class,
-            participant_kwargs,
-            cost_function,
-            cost_parameters,
-            held_constant_policy_kwargs,
-            policy_parameters,
-            local_mode,
-            optimization_settings,
+            traces=traces,
+            participant_class=participant_class,
+            participant_kwargs=participant_kwargs,
+            cost_function=cost_function,
+            cost_parameters=cost_parameters,
+            held_constant_policy_kwargs=held_constant_policy_kwargs,
+            policy_parameters=policy_parameters,
+            optimization_settings=optimization_settings,
         )
+
+        self.held_constant_cost_kwargs = held_constant_cost_kwargs
 
         self.prior_probability_dict = {
             **{
-                cost_parameter: dict(zip(cost_prior.vals, cost_prior.probs))
+                cost_parameter: cost_prior["prior"]
                 for cost_parameter, cost_prior in self.cost_parameters.items()
+                if cost_parameter not in held_constant_cost_kwargs
             },
             **{
-                policy_parameter: dict(zip(policy_prior.vals, policy_prior.probs))
+                policy_parameter: policy_prior["prior"]
                 for policy_parameter, policy_prior in self.policy_parameters.items()
+                if policy_parameter not in held_constant_policy_kwargs
             },
         }
+        # make callable if not already a function
+        self.prior_probability_dict = {
+            key: eval(val) if isinstance(val, str) else val
+            for key, val in self.prior_probability_dict.items()
+        }
+
         self.optimization_space = self.get_optimization_space()
-
-        if "q_path" in self.held_constant_policy_kwargs:
-            all_cost_kwargs = [
-                dict(zip(self.cost_parameters.keys(), curr_val))
-                for curr_val in itertools.product(
-                    *[val.vals for val in self.cost_parameters.values()]
-                )
-            ]
-
-            self.q_files = {
-                get_param_string(cost_kwargs): load_q_file(
-                    self.participant_kwargs["experiment_setting"],
-                    self.cost_function,
-                    cost_kwargs,
-                    self.held_constant_policy_kwargs["q_path"],
-                )
-                for cost_kwargs in all_cost_kwargs
-            }
+        self.best_parameters = None
+        self.trials = None
 
     def function_to_optimize(self, config, traces, optimize=True):
         """
@@ -200,52 +194,84 @@ class GridRayInference(BaseRayInference):
         :param optimize:
         :return:
         """
+        policy_kwargs = {
+            key: config[key] for key in self.policy_parameters.keys() if key in config
+        }
+        cost_kwargs = {
+            key: config[key] for key in self.cost_parameters.keys() if key in config
+        }
+        additional_params = {}
 
-        policy_kwargs = {key: config[key] for key in self.policy_parameters.keys()}
-        cost_kwargs = {key: config[key] for key in self.cost_parameters.keys()}
+        for key, val in self.held_constant_cost_kwargs.items():
+            cost_kwargs[key] = val
+            additional_params[key] = val
 
-        for key in self.held_constant_policy_kwargs.keys():
-            if key == "q_path":
-                policy_kwargs["preference"] = self.q_files[
-                    get_param_string(cost_kwargs)
-                ]
+        for key, val in self.held_constant_policy_kwargs.items():
+            if key == "q_function_generator":
+                q_function_generator = val
             else:
-                policy_kwargs[key] = self.held_constant_policy_kwargs[key]
+                policy_kwargs[key] = val
+                additional_params[key] = val
+
+        policy_kwargs["preference"] = q_function_generator(
+            cost_kwargs, policy_kwargs["kappa"], policy_kwargs["gamma"]
+        )
 
         participant = self.participant_class(
             **self.participant_kwargs,
             num_trials=max([len(trace["actions"]) for trace in traces]),
             cost_function=self.cost_function,
             cost_kwargs=cost_kwargs,
-            policy_kwargs=policy_kwargs,
+            policy_kwargs={
+                key: val
+                for key, val in policy_kwargs.items()
+                if key not in ["gamma", "kappa"]
+            },
         )
 
         result = []
         for trace in traces:
+            trace["states"] = [
+                [
+                    adjust_state(
+                        state,
+                        policy_kwargs["gamma"],
+                        participant.mouselab_envs[0].mdp_graph.nodes.data("depth"),
+                        True,
+                    )
+                    for state in trial
+                ]
+                for trial in trace["states"]
+            ]
+            # trace["ground_truth"] = [
+            #     adjust_ground_truth(
+            #         ground_truth,
+            #         policy_kwargs["gamma"],
+            #         participant.mouselab_envs[0].mdp_graph.nodes.data("depth"),
+            #     )
+            #     for ground_truth in trace["ground_truth"]
+            # ]
+
+            # participant.agent.env
             participant_likelihood = participant.compute_likelihood(trace)
+
+            try:
+                prior_prob = np.sum(
+                    [
+                        prior_function(config[param])
+                        for param, prior_function in self.prior_probability_dict.items()
+                    ]
+                )
+            except KeyError:
+                # sometimes hyperopt seems to suggest values not in hp.choice
+                return {"loss": float("inf"), "status": STATUS_FAIL}
 
             if optimize is True:
                 # sum over actions in trial, then trials
                 trial_mles = np.fromiter(map(sum, participant_likelihood), dtype=float)
                 mle = np.sum(trial_mles)
-                map_val = mle + np.sum(
-                    [
-                        np.log(prior_dict[config[param]])
-                        for param, prior_dict in self.prior_probability_dict.items()
-                    ]
-                )
+                map_val = mle + prior_prob
 
-                # save mles for blocks (if they exist)
-                block_mles = {}
-                if "block" in trace:
-                    block_indices = {
-                        block: [curr_block == block for curr_block in trace["block"]]
-                        for block in np.unique(trace["block"])
-                    }
-                    block_mles = {
-                        f"{block}_mle": np.sum(trial_mles[block_indices[block]])
-                        for block in block_indices.keys()
-                    }
                 # simulated trace, save info used to simulate data
                 trace_info = {key: trace[key] for key in trace.keys() if "sim_" in key}
                 result.append(
@@ -253,9 +279,9 @@ class GridRayInference(BaseRayInference):
                         "map_val": map_val,
                         "mle": mle,
                         "trace_pid": trace["pid"][0],
-                        **block_mles,
                         **trace_info,
                         **config,
+                        **additional_params,
                     }
                 )
             else:
@@ -265,8 +291,9 @@ class GridRayInference(BaseRayInference):
             return result
         else:
             return {
-                "map_val": np.sum([res["map_val"] for res in result]),
+                "loss": -np.sum([res["map_val"] for res in result]),
                 "result": result,
+                "status": STATUS_OK,
             }
 
     def get_optimization_space(self):
@@ -274,14 +301,17 @@ class GridRayInference(BaseRayInference):
 
         :return:
         """
+
         search_space = {
             **{
-                cost_parameter: tune.grid_search(list(cost_prior.vals))
+                cost_parameter: eval(cost_prior["search_space"])
                 for cost_parameter, cost_prior in self.cost_parameters.items()
+                if cost_parameter not in self.held_constant_cost_kwargs
             },
             **{
-                policy_parameter: tune.grid_search(list(policy_prior.vals))
+                policy_parameter: eval(policy_prior["search_space"])
                 for policy_parameter, policy_prior in self.policy_parameters.items()
+                if policy_parameter not in self.held_constant_policy_kwargs
             },
         }
         return search_space
@@ -291,69 +321,55 @@ class GridRayInference(BaseRayInference):
 
         :return:
         """
-        ray.init(logging_level=logging.ERROR, local_mode=self.local_mode)
-        opt_results = tune.run(
-            lambda config: self.function_to_optimize(config, traces=self.traces),
-            config=self.optimization_space,
-            metric="map_val",
-            mode="max",
+        trials = Trials()
+        fmin(
+            lambda config: self.function_to_optimize(
+                config, traces=deepcopy(self.traces)
+            ),
+            space=self.optimization_space,
+            algo=tpe.suggest,
+            trials=trials,
             **self.optimization_settings,
         )
-        self.optimization_results = [
-            item
-            for opt_result in opt_results.results.values()
-            for item in opt_result["result"]
-        ]
-        ray.shutdown()
+        self.best_parameters = trials.best_trial
+        self.trials = trials
+        return self.best_parameters
 
     def get_best_parameters(self):
         """
 
         :return:
         """
-        optimization_results = self.get_optimization_results()
-
-        sim_cols = [col for col in list(optimization_results) if "sim_" in col]
-        best_param_rows = optimization_results.iloc[
-            optimization_results.groupby(["trace_pid"] + sim_cols).idxmax()["mle"]
-        ]
-
-        best_results = []
-        for trace in self.traces:
-            best_row = best_param_rows[
-                np.all(
-                    best_param_rows[sim_cols]
-                    == [trace[sim_col] for sim_col in sim_cols],
-                    axis=1,
-                )
-                & (best_param_rows["trace_pid"] == trace["pid"][0])
-            ]
-            assert len(best_row) == 1
-            best_results.extend(best_row.to_dict("records"))
-        return [
-            {
-                key: trace[key]
-                for key in {**self.policy_parameters, **self.cost_parameters}
-            }
-            for trace in best_results
-        ]
+        return self.best
 
     def get_output_df(self):
         """
 
         :return:
         """
-        traces = deepcopy(self.traces)
-        for best_params, trace in zip(self.get_best_parameters(), traces):
-            trace["pi"] = self.function_to_optimize(
-                best_params, traces=[trace], optimize=False
-            )[0]
-        trace_df = traces_to_df(traces)
-        return trace_df
+        return pd.DataFrame.from_dict(
+            [trial["result"]["result"][0] for trial in self.trials.trials]
+        )
 
     def get_optimization_results(self):
         """
 
         :return:
         """
-        return pd.DataFrame(self.optimization_results)
+        if not self.trials:
+            # First optimize with the run method
+            return None
+        else:
+            return {
+                "trials": self.trials,
+                "res": self.function_to_optimize(
+                    {
+                        param: param_val[0]
+                        for param, param_val in self.best_parameters["misc"][
+                            "vals"
+                        ].items()
+                    },
+                    deepcopy(self.traces),
+                    optimize=False,
+                ),
+            }

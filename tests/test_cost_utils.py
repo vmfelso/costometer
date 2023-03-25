@@ -13,7 +13,7 @@ save_q_test_data = [
         "env": {
             "name": "small_increasing",
             "branching": [2, 2],
-            "reward_inputs": ["depth"],
+            "reward_inputs": "depth",
             "reward_dictionary": high_increasing_reward,
         },
         "cost_kwargs": {
@@ -25,7 +25,7 @@ save_q_test_data = [
         "env": {
             "name": "small_decreasing",
             "branching": [2, 2],
-            "reward_inputs": ["depth"],
+            "reward_inputs": "depth",
             "reward_dictionary": high_decreasing_reward,
         },
         "cost_kwargs": {
